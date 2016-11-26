@@ -1,0 +1,122 @@
+<!DOCTYPE html PUBLIC '-//W3C//DTD XHTML 1.0 Strict//EN'
+  'http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd'>
+
+<html>
+  <head>
+    <title>Théorie de la programmation</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <link rel="stylesheet" href="http://www.w3.org/StyleSheets/Core/Steely" type="text/css" />
+  </head>
+  <body>
+    <h1> Travaux dirigés de théorie de la programmation</h1>
+    <p> <a href="http://perso.ens-lyon.fr/ioana.pasca/">Ioana Pasca</a> et
+      <a href="http://perso.ens-lyon.fr/marc.lasson">moi-même</a>
+      sommes chargés des travaux dirigés du cours <em>
+	<a href="http://perso.ens-lyon.fr/daniel.hirschkoff/ThPr/">Théorie de la programmation</a></em>
+      assuré par <a href="http://perso.ens-lyon.fr/daniel.hirschkoff/">Daniel Hirschkoff</a>.</p>
+   Voici la listes des énoncés de chacune des séances:
+   <ol>
+     <li> <a href="tp1.v">À la découverte de COQ</a>,</li>
+     <li> <a href="tp2.v">Prédicats inductifs</a> (la <a href="tp2-cor.v">solution</a> des profs, ainsi qu'une autre <a href="tp2-cor-dross.v">solution</a> de François Dross, merci à lui), </li>
+     <li> <a href="tp3.v">Équivalence petit pas-grand pas d'un langage arithmétique</a> (<a href="tp3-cor.v">solution</a>, une <a href="tp3-cor-io.v">solution plus linéaire</a>), </li>
+     <li> <a href="tp4.v">Équivalence petit pas-grand pas dans IMP</a> (<a href="tp4-cor.v">corrigé</a>),</li>
+     <li> <a href="tp5.v">Équivalence petit pas-grand pas dans IMP (suite) et logique de Hoare</a> (<a href="tp5-cor.v">corrigé</a>),</li>
+     <li> <a href="tp6.pdf">Hoare en action : l'outil <em>Why</em></a>,</li>
+     <li> <a href="td7.pdf">Elimination des références et des exceptions dans MINI-ML</a>,</li>
+     <li> <a href="tp8.pdf">Un interpréteur de MINI-ML</a> (<a href="miniml.tgz">miniml.tgz</a>, 
+ <a href="miniml-cor.tgz">code corrigé</a>),</li>
+     <li> <a href="tp9.pdf">Unification</a>
+          (<a href="tp9.tgz">archive</a>, 
+	  <a href="tp9-cor.tgz">code corrigé</a>),</li>
+     <li> <a href="tp10.pdf">Inférence de type dans MINIML</a>
+     (<a href="tp10.tgz">archive</a>, <a href="tp10-cor.tgz">corrigé</a>),</li>
+     <li> <a href="td11.pdf">Réécriture</a> (<a href="td11-cor.pdf">corrigé</a>), </li>
+     <li> <a href="td12.pdf">Réécriture</a>, </li>
+     <li> <a href="tp13.pdf">Analyse lexicale et syntaxique</a> (
+          <a href="tp13.tgz">archive</a>),</li>
+     <li> <a href="td14.pdf">Réécriture</a>, </li>
+     <li> <a href="https://who.rocq.inria.fr/Marc.Lasson/Prog/td15.v">Réécriture en coq</a>. </li>
+   </ol>
+
+   <p> 
+   Vous avez un devoir à rendre: <a href="DM">certifiez votre premier compilateur !</a>.
+   </p>
+
+  Voici la liste des tactiques indispensables:
+
+  <table border="2" cellspacing="10"> 
+	    <tr> 
+		<th></th> 
+		<th> →,∀ </th> 
+		<th> ⋀ </th> 
+		<th> ⋁ </th> 
+		<th> ∃ </th> 
+		<th> ~ </th> 
+		<th> = </th> 
+	    </tr> 
+	    <tr> 
+		<th> Constructeurs (But) </th> 
+		<td><a href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic13"> intro(s) </a></td> 
+		<td><a id="norm" href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic73"> split </a></td> 
+		<td><a id="norm" href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic75"> left</a>,<a href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic76">right</a> </td> 
+		<td><a id="norm" href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic74"> exists </a></td> 
+		<td><a id="norm" href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic13"> intro </a></td> 
+		<td><a id="norm" href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic111"> reflexivity </a></td> 
+	    </tr> 
+	    <tr> 
+		<th class="leftcell"> Destructeurs (Hypothèses) </th> 
+		<td><a id="norm" href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic21">apply </a></td> 
+		<td><a id="norm" href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic88">destruct </a></td> 
+		<td><a id="norm" href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic88">destruct </a></td> 
+		<td><a id="norm" href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic88">destruct </a></td> 
+		<td><a id="norm" href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic88">destruct </a></td> 
+		<td><a id="norm" href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic102">rewrite </a></td> 
+	    </tr> 
+	</table> 
+Puis voici une liste de tactiques utiles:
+<ul>
+  <li><a id="norm" href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic82">induction</a>: <code>induction x</code> invoque le bon principe d'induction 
+  pour prouver le but par induction sur <code>x</code>. </li>
+
+  <li><a id="norm" href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic130">inversion</a>: <code>inversion H</code> devine toutes les formes 
+  possible du paramètre du prédicat inductifs prouvé par l'hypothèse
+  <code> H </code>.
+  <li><a id="norm" href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic66">simpl</a>: simplifie le but (ou une hypothèse via la syntaxe <code>simpl in H</code>) en effectuant un calcul. </li>
+  <li><a id="norm" href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic68">unfold</a>: <code>unfold def</code> déplie la définition <code>def</code> dans l'énoncé du but à prouver (ou dans une hypothèse via la syntaxe <code>unfold def in H</code>). </li>
+  <li><a id="norm" href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic6">assumption</a>: regarde si une hypothèse permet de prouver directement le but.</li>
+  <li><a id="norm" href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic29">assert</a>: <code>assert P</code> créé un nouveau but 
+      pour prouver <code>P</code> et rajoute <code>P</code> dans la liste des hypothèses des autres buts. Utile pour raisonner en avant. 
+      On peut également préciser le nom de l'hypothèse grâce à la syntaxe suivante <code>assert (H : P)</code>. 
+   </li>
+
+  <li><a id="norm" href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic110">replace</a>: <code>replace t₁ with t₂</code> équivalent 
+  de <code>assert (H : t₁ = t₂). rewrite H.</code></li>
+</ul>
+
+Enfin, voici la liste des tactiques "interdites" (ce sont les tactiques automatiques):
+<ul>
+  <li><a id="norm" href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic153">auto</a>: cherche à prouver le but en appliquant 
+      récursivement les théorèmes du contexte. 
+  <li><a id="norm" href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic165">omega</a>: prouve toutes les formules de 
+      <a href="http://en.wikipedia.org/wiki/Presburger_arithmetic">l'arithmétique de Presburger</a>. Nécessite de charger la bibliothèque adéquate grâce à <code>Require Import Omega.</code></li>
+  <li><a id="norm" href="http://coq.inria.fr/refman/Reference-Manual011.html#@tactic166">ring</a>: prouve toutes les formules sans quantificateur
+      vraies dans tous les anneaux. Nécessite de charger la bibliothèque adéquate grâce à <code>Require Import Ring.</code></li>
+</ul>
+
+Dans tous les cas n'hésitez jamais à consulter le <a href="http://coq.inria.fr/refman/">manuel de coq</a> ainsi que <a href="http://coq.inria.fr/stdlib/">
+la bibliothèque standard</a>. 
+
+<!-- Google analytics -->
+<script type="text/javascript">
+  var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+  document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+  </script>
+  <script type="text/javascript">
+  try {
+  var pageTracker = _gat._getTracker("UA-12912216-1");
+  pageTracker._trackPageview();
+  } catch(err) {}
+</script>
+  </body>
+</html>
+

@@ -1,0 +1,1259 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+<link href="coqdoc.css" rel="stylesheet" type="text/css"/>
+<title>compiler</title>
+</head>
+
+<body>
+
+<div id="page">
+
+<div id="header">
+</div>
+
+<div id="main">
+
+<h1 class="libtitle">Un mini compilateur certifié</h1>
+
+<div class="code">
+</div>
+
+<div class="doc">
+ Le projet <a href="http://compcert.inria.fr">compcert</a> initié en 2005 
+ par Xavier Leroy est probablement l'une des réalisations les 
+ plus intéréssantes du domaine. Le but de ce projet est de 
+ développer un compilateur d'un gros sous-ensemble du langage 
+ C vers des architectures réalistes 
+  (<a href="http://en.wikipedia.org/wiki/PowerPC">PowerPC</a>, 
+   <a href="http://en.wikipedia.org/wiki/ARM"> ARM</a>,
+   <a href="http://en.wikipedia.org/wiki/X86"> x86</a>, ...). 
+ Le développement de compcert consiste en un programme Coq d'une
+ centaine de milliers de lignes dont est extrait un compilateur
+ programmé en Caml qui compile du code C vers une de ces 
+ architectures. La formalisation en coq permet de prouver 
+ que ce compilateur préserve la sémantique du langage de départ. 
+ Cela assure donc à l'utilisateur du compilateur que 
+ ce dernier n'introduira aucun bug en traduisant le C en assembleur. 
+
+<br/> <br/>
+ Le but de ce devoir sera de développer votre propre compilateur
+ certifié. Bien sûr, nous allons être moins ambitieux que compcert, 
+ puisqu'il s'agira de compiler une version simplifiée de IMP vers 
+ un assembleur allégé. 
+
+<br/> <br/>
+ Votre travail consistera à prouver le plus grand nombre de lemmes
+ possibles sans changer les énoncés ni les définitions (vous êtes 
+ biensûr autorisés à ajouter des lemmes). Vous devrez donc nous 
+ rendre le fichier 
+   <a href="http://perso.ens-lyon.fr/marc.lasson/Prog/DM/compiler.v">compiler.v</a>
+ complété. 
+<hr/>
+
+ Si vous voulez tester votre compilateur, vous pouvez télécharger
+ l'archive 
+   <a href="http://perso.ens-lyon.fr/marc.lasson/Prog/DM/imp.tgz">imp.tgz</a>
+ qui contient tout ce qui vous sera nécessaire pour extraire le code du source 
+ coq et compiler le compilateur (lisez le fichier README
+ pour les instructions). 
+<hr/>
+
+ Des points bonus seront attribués à ceux qui développeront
+ (dans le langage de leur choix) une machine virtuelle pour 
+ exécuter le code assembleur. 
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" type="keyword">Require</span> <span class="id" type="keyword">Import</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Arith.Arith.html#"><span class="id" type="library">Arith</span></a>.<br/>
+<span class="id" type="keyword">Require</span> <span class="id" type="keyword">Import</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Lists.List.html#"><span class="id" type="library">List</span></a>.<br/>
+
+<br/>
+<span class="id" type="var">Notation </span><a name="::'[]'"><span class="id" type="notation">"</span></a>[]" := <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#nil"><span class="id" type="constructor">nil</span></a>.<br/>
+<span class="id" type="var">Notation </span><a name="::'['_x_';'_'..'_';'_x_']'"><span class="id" type="notation">"</span></a>[ a ; .. ; b ]" := (<span class="id" type="var">a</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a> .. (<span class="id" type="var">b</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a> <a class="idref" href="compiler.html#::'[]'"><span class="id" type="notation">[]</span></a>) ..).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab1"></a><h1 class="section">Un modèle de mémoire simpliste</h1>
+
+</div>
+<div class="code">
+
+<br/>
+</div>
+
+<div class="doc">
+Dans ce devoir, la mémoire est implémentée par le 
+type <span class="inlinecode"><a class="idref" href="compiler.html#store"><span class="id" type="definition">store</span></a></span> comme une liste d'association entre les
+variables (de type <span class="inlinecode"><a class="idref" href="compiler.html#var"><span class="id" type="definition">var</span></a></span>) et les valeurs 
+(de type <span class="inlinecode"><a class="idref" href="compiler.html#value"><span class="id" type="definition">value</span></a></span>). 
+
+<br/> <br/>
+<ul>
+<li> Remarque : Ce modèle de mémoire n'est pas 
+
+</li>
+</ul>
+exactement réaliste: la mémoire utilisée par le programme
+est fixée par le nombre de variables utilisées, il n'est
+pas possible de faire de l'allocation dynamique de mémoire. 
+C'est comme si l'on avait uniquement des registres (en 
+nombre fini mais autant que l'on veut). 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" type="keyword">Definition</span> <a name="var"><span class="id" type="definition">var</span></a> := <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>.<br/>
+<span class="id" type="keyword">Definition</span> <a name="value"><span class="id" type="definition">value</span></a> := <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>.<br/>
+
+<br/>
+<span class="id" type="keyword">Definition</span> <a name="store"><span class="id" type="definition">store</span></a> : <span class="id" type="keyword">Type</span> := <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#list"><span class="id" type="inductive">list</span></a> (<a class="idref" href="compiler.html#var"><span class="id" type="definition">var</span></a> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:type_scope:x_'*'_x"><span class="id" type="notation">*</span></a> <a class="idref" href="compiler.html#value"><span class="id" type="definition">value</span></a>).<br/>
+<span class="id" type="keyword">Definition</span> <a name="store_empty"><span class="id" type="definition">store_empty</span></a> : <a class="idref" href="compiler.html#store"><span class="id" type="definition">store</span></a> := <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#nil"><span class="id" type="constructor">nil</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+On utilisera les deux prédicats suivants pour accéder
+à la mémoire. <span class="inlinecode"><a class="idref" href="compiler.html#get"><span class="id" type="inductive">get</span></a> ρ <span class="id" type="var">x</span> <span class="id" type="var">v</span></span> signifie que l'environnement <span class="inlinecode">ρ</span> associe à 
+  <span class="inlinecode"><span class="id" type="var">x</span></span> la valeur <span class="inlinecode"><span class="id" type="var">v</span></span>. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Inductive</span> <a name="get"><span class="id" type="inductive">get</span></a> : <a class="idref" href="compiler.html#store"><span class="id" type="definition">store</span></a> -&gt; <a class="idref" href="compiler.html#var"><span class="id" type="definition">var</span></a> -&gt; <a class="idref" href="compiler.html#value"><span class="id" type="definition">value</span></a> -&gt; <span class="id" type="keyword">Prop</span> := <br/>
+&nbsp;&nbsp;| <a name="get_head"><span class="id" type="constructor">get_head</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">l</span> <span class="id" type="var">a</span> <span class="id" type="var">x</span>, <a class="idref" href="compiler.html#get"><span class="id" type="inductive">get</span></a> (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">a</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a><span class="id" type="var">x</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a><span class="id" type="var">l</span>) <span class="id" type="var">a</span> <span class="id" type="var">x</span><br/>
+&nbsp;&nbsp;| <a name="get_tail"><span class="id" type="constructor">get_tail</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">l</span> <span class="id" type="var">a</span> <span class="id" type="var">b</span> <span class="id" type="var">x</span> <span class="id" type="var">y</span>, <a class="idref" href="compiler.html#get"><span class="id" type="inductive">get</span></a> <span class="id" type="var">l</span> <span class="id" type="var">a</span> <span class="id" type="var">x</span> -&gt; <span class="id" type="var">a</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Logic.html#:type_scope:x_'<>'_x"><span class="id" type="notation">&lt;&gt;</span></a><span class="id" type="var">b</span> -&gt; <a class="idref" href="compiler.html#get"><span class="id" type="inductive">get</span></a> (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">b</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a><span class="id" type="var">y</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a><span class="id" type="var">l</span>) <span class="id" type="var">a</span> <span class="id" type="var">x</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<span class="inlinecode"><a class="idref" href="compiler.html#update"><span class="id" type="inductive">update</span></a> ρ <span class="id" type="var">x</span> <span class="id" type="var">v</span> ρ'</span> signifie que l'environnement <span class="inlinecode">ρ'</span> est 
+    obtenu à partir de <span class="inlinecode">ρ</span> en remplaçant la valeur associée à 
+    <span class="inlinecode"><span class="id" type="var">x</span></span> par <span class="inlinecode"><span class="id" type="var">v</span></span>. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Inductive</span> <a name="update"><span class="id" type="inductive">update</span></a> : <a class="idref" href="compiler.html#store"><span class="id" type="definition">store</span></a> -&gt; <a class="idref" href="compiler.html#var"><span class="id" type="definition">var</span></a> -&gt; <a class="idref" href="compiler.html#value"><span class="id" type="definition">value</span></a> -&gt; <a class="idref" href="compiler.html#store"><span class="id" type="definition">store</span></a> -&gt; <span class="id" type="keyword">Prop</span> := <br/>
+&nbsp;&nbsp;| <a name="update_head"><span class="id" type="constructor">update_head</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">l</span> <span class="id" type="var">a</span> <span class="id" type="var">x</span> <span class="id" type="var">y</span>, <a class="idref" href="compiler.html#update"><span class="id" type="inductive">update</span></a> (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">a</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a><span class="id" type="var">x</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a><span class="id" type="var">l</span>) <span class="id" type="var">a</span> <span class="id" type="var">y</span> (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">a</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a><span class="id" type="var">y</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a><span class="id" type="var">l</span>)<br/>
+&nbsp;&nbsp;| <a name="update_tail"><span class="id" type="constructor">update_tail</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">l</span> <span class="id" type="var">l'</span> <span class="id" type="var">a</span> <span class="id" type="var">b</span> <span class="id" type="var">x</span> <span class="id" type="var">y</span>, <a class="idref" href="compiler.html#update"><span class="id" type="inductive">update</span></a> <span class="id" type="var">l</span> <span class="id" type="var">a</span> <span class="id" type="var">x</span> <span class="id" type="var">l'</span> -&gt; <span class="id" type="var">a</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Logic.html#:type_scope:x_'<>'_x"><span class="id" type="notation">&lt;&gt;</span></a><span class="id" type="var">b</span> -&gt; <a class="idref" href="compiler.html#update"><span class="id" type="inductive">update</span></a> (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">b</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a><span class="id" type="var">y</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a><span class="id" type="var">l</span>) <span class="id" type="var">a</span> <span class="id" type="var">x</span> (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">b</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a><span class="id" type="var">y</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a><span class="id" type="var">l'</span>)<br/>
+&nbsp;&nbsp;| <a name="update_nil"><span class="id" type="constructor">update_nil</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">a</span> <span class="id" type="var">x</span>, <a class="idref" href="compiler.html#update"><span class="id" type="inductive">update</span></a> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#nil"><span class="id" type="constructor">nil</span></a> <span class="id" type="var">a</span> <span class="id" type="var">x</span> (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">a</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a> <span class="id" type="var">x</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#nil"><span class="id" type="constructor">nil</span></a>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Le lemme suivant affirme qu'on peut toujours mettre à jour 
+    un environnement. 
+<ul>
+<li> Difficulté : 2. 
+
+</li>
+<li> Astuce: vous aurez besoin du lemme <span class="inlinecode"><span class="id" type="var">dec_eq_nat</span></span> de 
+      la bibliothèque standard. 
+</li>
+</ul>
+
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="update_total"><span class="id" type="lemma">update_total</span></a>: <br/>
+&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">r</span> <span class="id" type="var">x</span> <span class="id" type="var">v</span>, <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Logic.html#:type_scope:'exists'_x_','_x"><span class="id" type="notation">exists</span></a> <span class="id" type="var">r'</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Logic.html#:type_scope:'exists'_x_','_x"><span class="id" type="notation">,</span></a> <a class="idref" href="compiler.html#update"><span class="id" type="inductive">update</span></a> <span class="id" type="var">r</span> <span class="id" type="var">x</span> <span class="id" type="var">v</span> <span class="id" type="var">r'</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<span class="inlinecode"><a class="idref" href="compiler.html#update"><span class="id" type="inductive">update</span></a></span> met bien à jour l'environnement. 
+<ul>
+<li> Difficulté : 1. 
+</li>
+</ul>
+
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="update_get"><span class="id" type="lemma">update_get</span></a>: <br/>
+&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">r</span> <span class="id" type="var">r'</span> <span class="id" type="var">x</span> <span class="id" type="var">v</span>, <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#update"><span class="id" type="inductive">update</span></a> <span class="id" type="var">r</span> <span class="id" type="var">x</span> <span class="id" type="var">v</span> <span class="id" type="var">r'</span> -&gt; <a class="idref" href="compiler.html#get"><span class="id" type="inductive">get</span></a> <span class="id" type="var">r'</span> <span class="id" type="var">x</span> <span class="id" type="var">v</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Mettre à jour deux fois ne sert à rien.
+<ul>
+<li> Difficulté: 2. 
+</li>
+</ul>
+
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="update_update"><span class="id" type="lemma">update_update</span></a>: <br/>
+&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">r</span> <span class="id" type="var">x</span> <span class="id" type="var">v</span> <span class="id" type="var">r'</span>, <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#update"><span class="id" type="inductive">update</span></a> <span class="id" type="var">r</span> <span class="id" type="var">x</span> <span class="id" type="var">v</span> <span class="id" type="var">r'</span> -&gt; <span class="id" type="keyword">forall</span> <span class="id" type="var">r''</span> <span class="id" type="var">v'</span>,  <a class="idref" href="compiler.html#update"><span class="id" type="inductive">update</span></a> <span class="id" type="var">r</span> <span class="id" type="var">x</span> <span class="id" type="var">v'</span> <span class="id" type="var">r''</span> -&gt; <a class="idref" href="compiler.html#update"><span class="id" type="inductive">update</span></a> <span class="id" type="var">r''</span> <span class="id" type="var">x</span> <span class="id" type="var">v</span> <span class="id" type="var">r'</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+La relation <span class="inlinecode"><a class="idref" href="compiler.html#update"><span class="id" type="inductive">update</span></a></span> est une relation fonctionnelle. 
+<ul>
+<li> Difficulté: 1. 
+
+</li>
+<li> Astuce : Vous devrez utiliser <span class="inlinecode"><span class="id" type="tactic">inversion</span></span>. 
+</li>
+</ul>
+
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="update_function"><span class="id" type="lemma">update_function</span></a> : <br/>
+&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">r</span> <span class="id" type="var">x</span> <span class="id" type="var">v</span> <span class="id" type="var">r1</span>, <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#update"><span class="id" type="inductive">update</span></a> <span class="id" type="var">r</span> <span class="id" type="var">x</span> <span class="id" type="var">v</span> <span class="id" type="var">r1</span> -&gt; <span class="id" type="keyword">forall</span> <span class="id" type="var">r2</span>, <a class="idref" href="compiler.html#update"><span class="id" type="inductive">update</span></a> <span class="id" type="var">r</span> <span class="id" type="var">x</span> <span class="id" type="var">v</span> <span class="id" type="var">r2</span> -&gt; <span class="id" type="var">r1</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Logic.html#:type_scope:x_'='_x"><span class="id" type="notation">=</span></a> <span class="id" type="var">r2</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab2"></a><h1 class="section">Mini-IMP : Un langage de haut niveau</h1>
+
+</div>
+<div class="code">
+
+<br/>
+</div>
+
+<div class="doc">
+Le type <span class="inlinecode"><a class="idref" href="compiler.html#term"><span class="id" type="inductive">term</span></a></span> permet de représenter les expressions 
+    manipulées par notre version de IMP. 
+<ul>
+<li> Remarque: Il faut noter que le choix d'un langage d'expressions 
+
+</li>
+</ul>
+    aussi pauvre va simplifier grandement la compilation. En 
+    effet, l'absence d'opérateurs binaires (comme l'addition par 
+    exemple) permet de compiler l'evaluation d'expressions
+    sans avoir besoin de variables temporaires. Cela évacue 
+    également problèmes 
+    d'<a href="http://en.wikipedia.org/wiki/Register_allocation">allocation de registres</a>. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Inductive</span> <a name="term"><span class="id" type="inductive">term</span></a> : <span class="id" type="keyword">Type</span> :=<br/>
+&nbsp;&nbsp;&nbsp;| <a name="tcst"><span class="id" type="constructor">tcst</span></a>  : <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a> -&gt; <a class="idref" href="compiler.html#term"><span class="id" type="inductive">term</span></a><br/>
+&nbsp;&nbsp;&nbsp;| <a name="tvar"><span class="id" type="constructor">tvar</span></a> : <a class="idref" href="compiler.html#var"><span class="id" type="definition">var</span></a> -&gt; <a class="idref" href="compiler.html#term"><span class="id" type="inductive">term</span></a><br/>
+&nbsp;&nbsp;&nbsp;| <a name="succ"><span class="id" type="constructor">succ</span></a> : <a class="idref" href="compiler.html#term"><span class="id" type="inductive">term</span></a> -&gt; <a class="idref" href="compiler.html#term"><span class="id" type="inductive">term</span></a><br/>
+&nbsp;&nbsp;&nbsp;| <a name="pred"><span class="id" type="constructor">pred</span></a> : <a class="idref" href="compiler.html#term"><span class="id" type="inductive">term</span></a> -&gt; <a class="idref" href="compiler.html#term"><span class="id" type="inductive">term</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+On utilise la notation <span class="inlinecode">#<span class="id" type="var">n</span></span> pour les constantes. 
+</div>
+<div class="code">
+<span class="id" type="var">Notation </span><a name="::'#'_x"><span class="id" type="notation">"</span></a># n" := (<a class="idref" href="compiler.html#tcst"><span class="id" type="constructor">tcst</span></a> <span class="id" type="var">n</span>) (<span class="id" type="tactic">at</span> <span class="id" type="var">level</span> 1).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Et la notation <span class="inlinecode">! <span class="id" type="var">n</span></span> pour plonger les variables dans les termes. 
+</div>
+<div class="code">
+<span class="id" type="var">Notation </span><a name="::'!'_x"><span class="id" type="notation">"</span></a>! n" := (<a class="idref" href="compiler.html#tvar"><span class="id" type="constructor">tvar</span></a> <span class="id" type="var">n</span>) (<span class="id" type="tactic">at</span> <span class="id" type="var">level</span> 1).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Le prédicat <span class="inlinecode"><a class="idref" href="compiler.html#eval"><span class="id" type="inductive">eval</span></a> ρ <span class="id" type="var">t</span> <span class="id" type="var">v</span></span> nous indique que le terme <span class="inlinecode"><span class="id" type="var">t</span></span> s'évalue 
+    en <span class="inlinecode"><span class="id" type="var">v</span></span> dans l'environnement <span class="inlinecode">ρ</span>. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Inductive</span> <a name="eval"><span class="id" type="inductive">eval</span></a> : <a class="idref" href="compiler.html#store"><span class="id" type="definition">store</span></a> -&gt; <a class="idref" href="compiler.html#term"><span class="id" type="inductive">term</span></a> -&gt; <a class="idref" href="compiler.html#value"><span class="id" type="definition">value</span></a> -&gt; <span class="id" type="keyword">Prop</span> :=<br/>
+&nbsp;&nbsp;| <a name="eval_tcst"><span class="id" type="constructor">eval_tcst</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">r</span> <span class="id" type="var">n</span>, <a class="idref" href="compiler.html#eval"><span class="id" type="inductive">eval</span></a> <span class="id" type="var">r</span> <a class="idref" href="compiler.html#::'#'_x"><span class="id" type="notation">#</span></a><span class="id" type="var">n</span> <span class="id" type="var">n</span><br/>
+&nbsp;&nbsp;| <a name="eval_tvar"><span class="id" type="constructor">eval_tvar</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">r</span> <span class="id" type="var">x</span> <span class="id" type="var">n</span>, <a class="idref" href="compiler.html#get"><span class="id" type="inductive">get</span></a> <span class="id" type="var">r</span> <span class="id" type="var">x</span> <span class="id" type="var">n</span> -&gt; <a class="idref" href="compiler.html#eval"><span class="id" type="inductive">eval</span></a> <span class="id" type="var">r</span> <a class="idref" href="compiler.html#::'!'_x"><span class="id" type="notation">!</span></a><span class="id" type="var">x</span> <span class="id" type="var">n</span><br/>
+&nbsp;&nbsp;| <a name="eval_succ"><span class="id" type="constructor">eval_succ</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">r</span> <span class="id" type="var">t</span> <span class="id" type="var">n</span>, <a class="idref" href="compiler.html#eval"><span class="id" type="inductive">eval</span></a> <span class="id" type="var">r</span> <span class="id" type="var">t</span> <span class="id" type="var">n</span> -&gt; <a class="idref" href="compiler.html#eval"><span class="id" type="inductive">eval</span></a> <span class="id" type="var">r</span> (<a class="idref" href="compiler.html#succ"><span class="id" type="constructor">succ</span></a> <span class="id" type="var">t</span>) (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#S"><span class="id" type="constructor">S</span></a> <span class="id" type="var">n</span>)<br/>
+&nbsp;&nbsp;| <a name="eval_pred_S"><span class="id" type="constructor">eval_pred_S</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">r</span> <span class="id" type="var">t</span> <span class="id" type="var">n</span>, <a class="idref" href="compiler.html#eval"><span class="id" type="inductive">eval</span></a> <span class="id" type="var">r</span> <span class="id" type="var">t</span> (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#S"><span class="id" type="constructor">S</span></a> <span class="id" type="var">n</span>) -&gt; <a class="idref" href="compiler.html#eval"><span class="id" type="inductive">eval</span></a> <span class="id" type="var">r</span> (<a class="idref" href="compiler.html#pred"><span class="id" type="constructor">pred</span></a> <span class="id" type="var">t</span>) <span class="id" type="var">n</span><br/>
+&nbsp;&nbsp;| <a name="eval_pred_0"><span class="id" type="constructor">eval_pred_0</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">r</span> <span class="id" type="var">t</span>, <a class="idref" href="compiler.html#eval"><span class="id" type="inductive">eval</span></a> <span class="id" type="var">r</span> <span class="id" type="var">t</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#O"><span class="id" type="constructor">O</span></a> -&gt; <a class="idref" href="compiler.html#eval"><span class="id" type="inductive">eval</span></a> <span class="id" type="var">r</span> (<a class="idref" href="compiler.html#pred"><span class="id" type="constructor">pred</span></a> <span class="id" type="var">t</span>) <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#O"><span class="id" type="constructor">O</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Voici ainsi la version de IMP que nous allons utiliser. 
+    Une fois de plus, afin de simplifier le travail on force
+    les conditions du <span class="inlinecode"><a class="idref" href="compiler.html#while"><span class="id" type="constructor">while</span></a></span> et du <span class="inlinecode"><a class="idref" href="compiler.html#ifte"><span class="id" type="constructor">ifte</span></a></span> à être des variables. 
+    Bien sûr, idéalement on aurait pu utiliser des termes 
+    et les évaluer mais les preuves auraient ainsi été plus longues.  
+</div>
+<div class="code">
+<span class="id" type="keyword">Inductive</span> <a name="imp"><span class="id" type="inductive">imp</span></a> : <span class="id" type="keyword">Set</span> :=<br/>
+&nbsp;&nbsp;&nbsp;| <a name="skip"><span class="id" type="constructor">skip</span></a>  : <a class="idref" href="compiler.html#imp"><span class="id" type="inductive">imp</span></a><br/>
+&nbsp;&nbsp;&nbsp;| <a name="seqi"><span class="id" type="constructor">seqi</span></a>  : <a class="idref" href="compiler.html#imp"><span class="id" type="inductive">imp</span></a> -&gt; <a class="idref" href="compiler.html#imp"><span class="id" type="inductive">imp</span></a> -&gt; <a class="idref" href="compiler.html#imp"><span class="id" type="inductive">imp</span></a><br/>
+&nbsp;&nbsp;&nbsp;| <a name="ass"><span class="id" type="constructor">ass</span></a>   : <a class="idref" href="compiler.html#var"><span class="id" type="definition">var</span></a> -&gt; <a class="idref" href="compiler.html#term"><span class="id" type="inductive">term</span></a> -&gt; <a class="idref" href="compiler.html#imp"><span class="id" type="inductive">imp</span></a><br/>
+&nbsp;&nbsp;&nbsp;| <a name="ifte"><span class="id" type="constructor">ifte</span></a>  : <a class="idref" href="compiler.html#var"><span class="id" type="definition">var</span></a> -&gt; <a class="idref" href="compiler.html#imp"><span class="id" type="inductive">imp</span></a> -&gt; <a class="idref" href="compiler.html#imp"><span class="id" type="inductive">imp</span></a> -&gt; <a class="idref" href="compiler.html#imp"><span class="id" type="inductive">imp</span></a><br/>
+&nbsp;&nbsp;&nbsp;| <a name="while"><span class="id" type="constructor">while</span></a> : <a class="idref" href="compiler.html#var"><span class="id" type="definition">var</span></a> -&gt; <a class="idref" href="compiler.html#imp"><span class="id" type="inductive">imp</span></a> -&gt; <a class="idref" href="compiler.html#imp"><span class="id" type="inductive">imp</span></a>.<br/>
+
+<br/>
+<span class="id" type="var">Notation </span><a name="::x_';;'_x"><span class="id" type="notation">"</span></a>A ;; B" := (<a class="idref" href="compiler.html#seqi"><span class="id" type="constructor">seqi</span></a> <span class="id" type="var">A</span> <span class="id" type="var">B</span>) (<span class="id" type="tactic">at</span> <span class="id" type="var">level</span> 100, <span class="id" type="var">right</span> <span class="id" type="var">associativity</span>).<br/>
+<span class="id" type="var">Notation </span><a name="::x_'<-'_x"><span class="id" type="notation">"</span></a>A &lt;- B" := (<a class="idref" href="compiler.html#ass"><span class="id" type="constructor">ass</span></a> <span class="id" type="var">A</span> <span class="id" type="var">B</span>) (<span class="id" type="tactic">at</span> <span class="id" type="var">level</span> 80, <span class="id" type="var">right</span> <span class="id" type="var">associativity</span>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab3"></a><h2 class="section">Quelques exemples de programmes</h2>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" type="keyword">Definition</span> <a name="plus_imp"><span class="id" type="definition">plus_imp</span></a> <span class="id" type="var">a</span> <span class="id" type="var">b</span> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#while"><span class="id" type="constructor">while</span></a> <span class="id" type="var">a</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(<span class="id" type="var">a</span> <a class="idref" href="compiler.html#::x_'<-'_x"><span class="id" type="notation">&lt;-</span></a> <a class="idref" href="compiler.html#pred"><span class="id" type="constructor">pred</span></a> <a class="idref" href="compiler.html#::'!'_x"><span class="id" type="notation">!</span></a><span class="id" type="var">a</span><a class="idref" href="compiler.html#::x_';;'_x"><span class="id" type="notation">;;</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="var">b</span> <a class="idref" href="compiler.html#::x_'<-'_x"><span class="id" type="notation">&lt;-</span></a> <a class="idref" href="compiler.html#succ"><span class="id" type="constructor">succ</span></a> <a class="idref" href="compiler.html#::'!'_x"><span class="id" type="notation">!</span></a><span class="id" type="var">b</span>).<br/>
+
+<br/>
+<span class="id" type="keyword">Definition</span> <a name="plus_test"><span class="id" type="definition">plus_test</span></a> <span class="id" type="var">a</span> <span class="id" type="var">b</span> :=<br/>
+&nbsp;&nbsp;&nbsp;0 <a class="idref" href="compiler.html#::x_'<-'_x"><span class="id" type="notation">&lt;-</span></a> <a class="idref" href="compiler.html#::'#'_x"><span class="id" type="notation">#</span></a><span class="id" type="var">a</span><a class="idref" href="compiler.html#::x_';;'_x"><span class="id" type="notation">;;</span></a><br/>
+&nbsp;&nbsp;&nbsp;1 <a class="idref" href="compiler.html#::x_'<-'_x"><span class="id" type="notation">&lt;-</span></a> <a class="idref" href="compiler.html#::'#'_x"><span class="id" type="notation">#</span></a><span class="id" type="var">b</span><a class="idref" href="compiler.html#::x_';;'_x"><span class="id" type="notation">;;</span></a><br/>
+&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#plus_imp"><span class="id" type="definition">plus_imp</span></a> 0 1.<br/>
+
+<br/>
+<span class="id" type="keyword">Definition</span> <a name="mult_imp"><span class="id" type="definition">mult_imp</span></a> <span class="id" type="var">t</span> <span class="id" type="var">r</span> <span class="id" type="var">a</span> <span class="id" type="var">b</span> := <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#while"><span class="id" type="constructor">while</span></a> <span class="id" type="var">a</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(<span class="id" type="var">t</span> <a class="idref" href="compiler.html#::x_'<-'_x"><span class="id" type="notation">&lt;-</span></a> <a class="idref" href="compiler.html#::'!'_x"><span class="id" type="notation">!</span></a><span class="id" type="var">b</span><a class="idref" href="compiler.html#::x_';;'_x"><span class="id" type="notation">;;</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#plus_imp"><span class="id" type="definition">plus_imp</span></a> <span class="id" type="var">b</span> <span class="id" type="var">r</span><a class="idref" href="compiler.html#::x_';;'_x"><span class="id" type="notation">;;</span></a> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="var">b</span> <a class="idref" href="compiler.html#::x_'<-'_x"><span class="id" type="notation">&lt;-</span></a> <a class="idref" href="compiler.html#::'!'_x"><span class="id" type="notation">!</span></a><span class="id" type="var">t</span><a class="idref" href="compiler.html#::x_';;'_x"><span class="id" type="notation">;;</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="var">a</span> <a class="idref" href="compiler.html#::x_'<-'_x"><span class="id" type="notation">&lt;-</span></a> <a class="idref" href="compiler.html#pred"><span class="id" type="constructor">pred</span></a> <a class="idref" href="compiler.html#::'!'_x"><span class="id" type="notation">!</span></a><span class="id" type="var">a</span>).<br/>
+
+<br/>
+<span class="id" type="keyword">Definition</span> <a name="mult_test"><span class="id" type="definition">mult_test</span></a> <span class="id" type="var">a</span> <span class="id" type="var">b</span> := <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;0 <a class="idref" href="compiler.html#::x_'<-'_x"><span class="id" type="notation">&lt;-</span></a> <a class="idref" href="compiler.html#::'#'_x"><span class="id" type="notation">#</span></a><span class="id" type="var">a</span><a class="idref" href="compiler.html#::x_';;'_x"><span class="id" type="notation">;;</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;1 <a class="idref" href="compiler.html#::x_'<-'_x"><span class="id" type="notation">&lt;-</span></a> <a class="idref" href="compiler.html#::'#'_x"><span class="id" type="notation">#</span></a><span class="id" type="var">b</span><a class="idref" href="compiler.html#::x_';;'_x"><span class="id" type="notation">;;</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#mult_imp"><span class="id" type="definition">mult_imp</span></a> 2 3 0 1.<br/>
+
+<br/>
+<span class="id" type="keyword">Definition</span> <a name="fact_test"><span class="id" type="definition">fact_test</span></a> <span class="id" type="var">n</span> := <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;0 <a class="idref" href="compiler.html#::x_'<-'_x"><span class="id" type="notation">&lt;-</span></a> <a class="idref" href="compiler.html#::'#'_x"><span class="id" type="notation">#</span></a>1<a class="idref" href="compiler.html#::x_';;'_x"><span class="id" type="notation">;;</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;1 <a class="idref" href="compiler.html#::x_'<-'_x"><span class="id" type="notation">&lt;-</span></a> <a class="idref" href="compiler.html#::'#'_x"><span class="id" type="notation">#</span></a><span class="id" type="var">n</span><a class="idref" href="compiler.html#::x_';;'_x"><span class="id" type="notation">;;</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#while"><span class="id" type="constructor">while</span></a> 1 (<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;3 <a class="idref" href="compiler.html#::x_'<-'_x"><span class="id" type="notation">&lt;-</span></a> <a class="idref" href="compiler.html#::'!'_x"><span class="id" type="notation">!</span></a>1<a class="idref" href="compiler.html#::x_';;'_x"><span class="id" type="notation">;;</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;4 <a class="idref" href="compiler.html#::x_'<-'_x"><span class="id" type="notation">&lt;-</span></a> <a class="idref" href="compiler.html#::'!'_x"><span class="id" type="notation">!</span></a>0<a class="idref" href="compiler.html#::x_';;'_x"><span class="id" type="notation">;;</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#mult_imp"><span class="id" type="definition">mult_imp</span></a> 2 0 3 4<a class="idref" href="compiler.html#::x_';;'_x"><span class="id" type="notation">;;</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;1 <a class="idref" href="compiler.html#::x_'<-'_x"><span class="id" type="notation">&lt;-</span></a> <a class="idref" href="compiler.html#pred"><span class="id" type="constructor">pred</span></a> <a class="idref" href="compiler.html#::'!'_x"><span class="id" type="notation">!</span></a>1<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Voici la sémantique à grand pas de mini-IMP:
+     <span class="inlinecode"><a class="idref" href="compiler.html#execute"><span class="id" type="inductive">execute</span></a> ρ <span class="id" type="var">k</span> ρ'</span> signifie que la commande <span class="inlinecode"><span class="id" type="var">k</span></span>
+     transforme l'environnement <span class="inlinecode">ρ</span> en <span class="inlinecode">ρ'</span>. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Inductive</span> <a name="execute"><span class="id" type="inductive">execute</span></a> : <a class="idref" href="compiler.html#store"><span class="id" type="definition">store</span></a> -&gt; <a class="idref" href="compiler.html#imp"><span class="id" type="inductive">imp</span></a> -&gt; <a class="idref" href="compiler.html#store"><span class="id" type="definition">store</span></a> -&gt; <span class="id" type="keyword">Prop</span> :=<br/>
+&nbsp;&nbsp;&nbsp;| <a name="execute_skip"><span class="id" type="constructor">execute_skip</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">r</span>, <a class="idref" href="compiler.html#execute"><span class="id" type="inductive">execute</span></a> <span class="id" type="var">r</span> <a class="idref" href="compiler.html#skip"><span class="id" type="constructor">skip</span></a> <span class="id" type="var">r</span><br/>
+&nbsp;&nbsp;&nbsp;| <a name="execute_ass"><span class="id" type="constructor">execute_ass</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">r</span> <span class="id" type="var">r'</span> <span class="id" type="var">t</span> <span class="id" type="var">a</span> <span class="id" type="var">n</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#eval"><span class="id" type="inductive">eval</span></a> <span class="id" type="var">r</span> <span class="id" type="var">t</span> <span class="id" type="var">n</span> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#update"><span class="id" type="inductive">update</span></a> <span class="id" type="var">r</span> <span class="id" type="var">a</span> <span class="id" type="var">n</span> <span class="id" type="var">r'</span> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#execute"><span class="id" type="inductive">execute</span></a> <span class="id" type="var">r</span> (<span class="id" type="var">a</span> <a class="idref" href="compiler.html#::x_'<-'_x"><span class="id" type="notation">&lt;-</span></a> <span class="id" type="var">t</span>) <span class="id" type="var">r'</span><br/>
+&nbsp;&nbsp;&nbsp;| <a name="execute_seq"><span class="id" type="constructor">execute_seq</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">r1</span> <span class="id" type="var">r2</span> <span class="id" type="var">r3</span> <span class="id" type="var">p</span> <span class="id" type="var">q</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#execute"><span class="id" type="inductive">execute</span></a> <span class="id" type="var">r1</span> <span class="id" type="var">p</span> <span class="id" type="var">r2</span> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#execute"><span class="id" type="inductive">execute</span></a> <span class="id" type="var">r2</span> <span class="id" type="var">q</span> <span class="id" type="var">r3</span> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#execute"><span class="id" type="inductive">execute</span></a> <span class="id" type="var">r1</span> (<span class="id" type="var">p</span><a class="idref" href="compiler.html#::x_';;'_x"><span class="id" type="notation">;;</span></a><span class="id" type="var">q</span>) <span class="id" type="var">r3</span><br/>
+&nbsp;&nbsp;&nbsp;| <a name="execute_ifte_true"><span class="id" type="constructor">execute_ifte_true</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">r</span> <span class="id" type="var">t</span> <span class="id" type="var">p1</span> <span class="id" type="var">p2</span> <span class="id" type="var">r'</span> <span class="id" type="var">x</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#get"><span class="id" type="inductive">get</span></a> <span class="id" type="var">r</span> <span class="id" type="var">t</span> (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#S"><span class="id" type="constructor">S</span></a> <span class="id" type="var">x</span>) -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#execute"><span class="id" type="inductive">execute</span></a> <span class="id" type="var">r</span> <span class="id" type="var">p1</span> <span class="id" type="var">r'</span> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#execute"><span class="id" type="inductive">execute</span></a> <span class="id" type="var">r</span> (<a class="idref" href="compiler.html#ifte"><span class="id" type="constructor">ifte</span></a> <span class="id" type="var">t</span> <span class="id" type="var">p1</span> <span class="id" type="var">p2</span>) <span class="id" type="var">r'</span><br/>
+&nbsp;&nbsp;&nbsp;| <a name="execute_ifte_false"><span class="id" type="constructor">execute_ifte_false</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">r</span> <span class="id" type="var">t</span> <span class="id" type="var">p1</span> <span class="id" type="var">p2</span> <span class="id" type="var">r'</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#get"><span class="id" type="inductive">get</span></a> <span class="id" type="var">r</span> <span class="id" type="var">t</span> 0 -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#execute"><span class="id" type="inductive">execute</span></a> <span class="id" type="var">r</span> <span class="id" type="var">p2</span> <span class="id" type="var">r'</span> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#execute"><span class="id" type="inductive">execute</span></a> <span class="id" type="var">r</span> (<a class="idref" href="compiler.html#ifte"><span class="id" type="constructor">ifte</span></a> <span class="id" type="var">t</span> <span class="id" type="var">p1</span> <span class="id" type="var">p2</span>) <span class="id" type="var">r'</span><br/>
+&nbsp;&nbsp;&nbsp;| <a name="execute_while_false"><span class="id" type="constructor">execute_while_false</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">r</span> <span class="id" type="var">t</span> <span class="id" type="var">p</span>, <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#get"><span class="id" type="inductive">get</span></a> <span class="id" type="var">r</span> <span class="id" type="var">t</span> 0 -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#execute"><span class="id" type="inductive">execute</span></a> <span class="id" type="var">r</span> (<a class="idref" href="compiler.html#while"><span class="id" type="constructor">while</span></a> <span class="id" type="var">t</span> <span class="id" type="var">p</span>) <span class="id" type="var">r</span><br/>
+&nbsp;&nbsp;&nbsp;| <a name="execute_while_true"><span class="id" type="constructor">execute_while_true</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">r1</span> <span class="id" type="var">r2</span> <span class="id" type="var">r3</span> <span class="id" type="var">t</span> <span class="id" type="var">p</span> <span class="id" type="var">n</span>, <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#get"><span class="id" type="inductive">get</span></a> <span class="id" type="var">r1</span> <span class="id" type="var">t</span> (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#S"><span class="id" type="constructor">S</span></a> <span class="id" type="var">n</span>) -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#execute"><span class="id" type="inductive">execute</span></a> <span class="id" type="var">r1</span> <span class="id" type="var">p</span> <span class="id" type="var">r2</span> -&gt; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#execute"><span class="id" type="inductive">execute</span></a> <span class="id" type="var">r2</span> (<a class="idref" href="compiler.html#while"><span class="id" type="constructor">while</span></a> <span class="id" type="var">t</span> <span class="id" type="var">p</span>) <span class="id" type="var">r3</span> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#execute"><span class="id" type="inductive">execute</span></a> <span class="id" type="var">r1</span> (<a class="idref" href="compiler.html#while"><span class="id" type="constructor">while</span></a> <span class="id" type="var">t</span> <span class="id" type="var">p</span>) <span class="id" type="var">r3</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Pour vérifier que vous avez compris:
+<ul>
+<li> Difficulté: -1. 
+</li>
+</ul>
+
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="mult_23"><span class="id" type="lemma">mult_23</span></a>: <br/>
+&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#execute"><span class="id" type="inductive">execute</span></a> <a class="idref" href="compiler.html#::'['_x_';'_'..'_';'_x_']'"><span class="id" type="notation">[</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a>0<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a>2<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="compiler.html#::'['_x_';'_'..'_';'_x_']'"><span class="id" type="notation">;</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a>1<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a>3<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="compiler.html#::'['_x_';'_'..'_';'_x_']'"><span class="id" type="notation">]</span></a> (<a class="idref" href="compiler.html#plus_test"><span class="id" type="definition">plus_test</span></a> 2 3) <a class="idref" href="compiler.html#::'['_x_';'_'..'_';'_x_']'"><span class="id" type="notation">[</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a>0<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a>0<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="compiler.html#::'['_x_';'_'..'_';'_x_']'"><span class="id" type="notation">;</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a>1<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a>5<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="compiler.html#::'['_x_';'_'..'_';'_x_']'"><span class="id" type="notation">]</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab4"></a><h1 class="section">Notre petit langage d'assemblage</h1>
+
+</div>
+<div class="code">
+
+<br/>
+</div>
+
+<div class="doc">
+Dans cette section, nous décrirons le langage
+    d'assemblage vers lequel nous allons compiler. 
+</div>
+<div class="code">
+
+<br/>
+</div>
+
+<div class="doc">
+On utilisera au besoin la notation <span class="inlinecode">$<span class="id" type="var">x</span></span> pour appuyer la 
+   distinction variable/constante. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Definition</span> <a name="V"><span class="id" type="definition">V</span></a> (<span class="id" type="var">n</span>:<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>) : <a class="idref" href="compiler.html#var"><span class="id" type="definition">var</span></a> := <span class="id" type="var">n</span>.<br/>
+<span class="id" type="var">Notation </span><a name="::'$'_x"><span class="id" type="notation">"</span></a>$ x" := (<a class="idref" href="compiler.html#V"><span class="id" type="definition">V</span></a> <span class="id" type="var">x</span>) (<span class="id" type="tactic">at</span> <span class="id" type="var">level</span> 0).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Les instructions de notre assembleur seront étiquetées par
+    des entiers. Ces étiquettes nous permettront de faire des 
+    sauts dans le code à l'aide des instructions <span class="inlinecode"><a class="idref" href="compiler.html#jmp"><span class="id" type="constructor">jmp</span></a></span> et <span class="inlinecode"><a class="idref" href="compiler.html#brz"><span class="id" type="constructor">brz</span></a></span>. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Definition</span> <a name="label"><span class="id" type="definition">label</span></a>: <span class="id" type="keyword">Set</span> := <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>.<br/>
+<span class="id" type="keyword">Definition</span> <a name="L"><span class="id" type="definition">L</span></a> (<span class="id" type="var">n</span>: <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>) : <a class="idref" href="compiler.html#label"><span class="id" type="definition">label</span></a> := <span class="id" type="var">n</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Voici la (courte) liste des instructions: 
+<ul>
+<li> <span class="inlinecode"><a class="idref" href="compiler.html#jmp"><span class="id" type="constructor">jmp</span></a> <span class="id" type="var">l</span></span> : permet de sauter à l'étiquette <span class="inlinecode"><span class="id" type="var">l</span></span>.
+
+</li>
+<li> <span class="inlinecode"><a class="idref" href="compiler.html#brz"><span class="id" type="constructor">brz</span></a> <span class="id" type="var">x</span> <span class="id" type="var">l</span></span> : saute à l'étiquette <span class="inlinecode"><span class="id" type="var">l</span></span> si la variable <span class="inlinecode"><span class="id" type="var">x</span></span> est nulle. 
+
+</li>
+<li> <span class="inlinecode"><span class="id" type="tactic">set</span> <span class="id" type="var">x</span> <span class="id" type="var">k</span></span> : assigne à la variable <span class="inlinecode"><span class="id" type="var">x</span></span> la valeur <span class="inlinecode"><span class="id" type="var">k</span></span>.
+
+</li>
+<li> <span class="inlinecode"><a class="idref" href="compiler.html#mov"><span class="id" type="constructor">mov</span></a> <span class="id" type="var">x</span> <span class="id" type="var">y</span></span> : assigne à la variable <span class="inlinecode"><span class="id" type="var">x</span></span> la valeur associée à la variable <span class="inlinecode"><span class="id" type="var">y</span></span>.
+
+</li>
+<li> <span class="inlinecode"><a class="idref" href="compiler.html#inc"><span class="id" type="constructor">inc</span></a> <span class="id" type="var">x</span> <span class="id" type="var">y</span></span> : assigne à la variable <span class="inlinecode"><span class="id" type="var">x</span></span> la valeur associée à la variable <span class="inlinecode"><span class="id" type="var">y</span></span> plus 1. 
+
+</li>
+<li> <span class="inlinecode"><a class="idref" href="compiler.html#dec"><span class="id" type="constructor">dec</span></a> <span class="id" type="var">x</span> <span class="id" type="var">y</span></span> : assigne à la variable <span class="inlinecode"><span class="id" type="var">x</span></span> la valeur associée à la variable <span class="inlinecode"><span class="id" type="var">y</span></span> moins 1. 
+
+</li>
+<li> <span class="inlinecode"><a class="idref" href="compiler.html#hlt"><span class="id" type="constructor">hlt</span></a></span> : arrête la machine. 
+
+</li>
+</ul>
+   Les listes d'instructions seront implémentées par les éléments du type <span class="inlinecode"><a class="idref" href="compiler.html#instr"><span class="id" type="inductive">instr</span></a></span>. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Inductive</span> <a name="instr"><span class="id" type="inductive">instr</span></a>: <span class="id" type="keyword">Set</span> :=<br/>
+&nbsp;&nbsp;| <a name="jmp"><span class="id" type="constructor">jmp</span></a>  : <a class="idref" href="compiler.html#label"><span class="id" type="definition">label</span></a> -&gt; <a class="idref" href="compiler.html#instr"><span class="id" type="inductive">instr</span></a><br/>
+&nbsp;&nbsp;| <a name="brz"><span class="id" type="constructor">brz</span></a>  : <a class="idref" href="compiler.html#var"><span class="id" type="definition">var</span></a> -&gt; <a class="idref" href="compiler.html#label"><span class="id" type="definition">label</span></a> -&gt; <a class="idref" href="compiler.html#instr"><span class="id" type="inductive">instr</span></a><br/>
+&nbsp;&nbsp;| <a name="set"><span class="id" type="constructor">set</span></a>  : <a class="idref" href="compiler.html#var"><span class="id" type="definition">var</span></a> -&gt; <a class="idref" href="compiler.html#value"><span class="id" type="definition">value</span></a> -&gt; <a class="idref" href="compiler.html#instr"><span class="id" type="inductive">instr</span></a><br/>
+&nbsp;&nbsp;| <a name="mov"><span class="id" type="constructor">mov</span></a>  : <a class="idref" href="compiler.html#var"><span class="id" type="definition">var</span></a> -&gt; <a class="idref" href="compiler.html#var"><span class="id" type="definition">var</span></a> -&gt; <a class="idref" href="compiler.html#instr"><span class="id" type="inductive">instr</span></a><br/>
+&nbsp;&nbsp;| <a name="inc"><span class="id" type="constructor">inc</span></a>  : <a class="idref" href="compiler.html#var"><span class="id" type="definition">var</span></a> -&gt; <a class="idref" href="compiler.html#var"><span class="id" type="definition">var</span></a> -&gt; <a class="idref" href="compiler.html#instr"><span class="id" type="inductive">instr</span></a><br/>
+&nbsp;&nbsp;| <a name="dec"><span class="id" type="constructor">dec</span></a>  : <a class="idref" href="compiler.html#var"><span class="id" type="definition">var</span></a> -&gt; <a class="idref" href="compiler.html#var"><span class="id" type="definition">var</span></a> -&gt; <a class="idref" href="compiler.html#instr"><span class="id" type="inductive">instr</span></a><br/>
+&nbsp;&nbsp;| <a name="hlt"><span class="id" type="constructor">hlt</span></a>  : <a class="idref" href="compiler.html#instr"><span class="id" type="inductive">instr</span></a><br/>
+&nbsp;&nbsp;| <a name="seq"><span class="id" type="constructor">seq</span></a>  : <a class="idref" href="compiler.html#instr"><span class="id" type="inductive">instr</span></a> -&gt; <a class="idref" href="compiler.html#instr"><span class="id" type="inductive">instr</span></a> -&gt; <a class="idref" href="compiler.html#instr"><span class="id" type="inductive">instr</span></a>.<br/>
+
+<br/>
+<span class="id" type="var">Infix </span><a name="::x_';'_x"><span class="id" type="notation">"</span></a>;" := <a class="idref" href="compiler.html#seq"><span class="id" type="constructor">seq</span></a> (<span class="id" type="tactic">at</span> <span class="id" type="var">level</span> 60, <span class="id" type="var">right</span> <span class="id" type="var">associativity</span>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Un programme en assembleur correspond donc à une liste d'instructions 
+    étiquetées. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Definition</span> <a name="program"><span class="id" type="definition">program</span></a> : <span class="id" type="keyword">Set</span> := <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#list"><span class="id" type="inductive">list</span></a> (<a class="idref" href="compiler.html#label"><span class="id" type="definition">label</span></a> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:type_scope:x_'*'_x"><span class="id" type="notation">*</span></a> <a class="idref" href="compiler.html#instr"><span class="id" type="inductive">instr</span></a>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Cette p notation nous permet de présenter notre exemple joliment. 
+</div>
+<div class="code">
+<span class="id" type="var">Notation </span><a name="::'block'_x_'[['_x_']]'_x"><span class="id" type="notation">"</span></a>'block' l [[ i ]] p" := (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">l</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a> <span class="id" type="var">i</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a> <span class="id" type="var">p</span>) (<span class="id" type="tactic">at</span> <span class="id" type="var">level</span> 0, <span class="id" type="var">right</span> <span class="id" type="var">associativity</span>, <span class="id" type="var">only</span> <span class="id" type="var">parsing</span>).<br/>
+<span class="id" type="var">Notation </span><a name="::'end_program'"><span class="id" type="notation">"</span></a>'end_program'" := <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#nil"><span class="id" type="constructor">nil</span></a> (<span class="id" type="var">only</span> <span class="id" type="var">parsing</span>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Mais que fait ce programme ? 
+</div>
+<div class="code">
+<span class="id" type="keyword">Definition</span> <a name="example"><span class="id" type="definition">example</span></a> : <a class="idref" href="compiler.html#program"><span class="id" type="definition">program</span></a> := <br/>
+&nbsp;&nbsp;<a class="idref" href="compiler.html#::'block'_x_'[['_x_']]'_x"><span class="id" type="notation">block</span></a> <a class="idref" href="compiler.html#::'block'_x_'[['_x_']]'_x"><span class="id" type="notation">(</span></a><a class="idref" href="compiler.html#L"><span class="id" type="definition">L</span></a> 0<a class="idref" href="compiler.html#::'block'_x_'[['_x_']]'_x"><span class="id" type="notation">)</span></a> <a class="idref" href="compiler.html#::'block'_x_'[['_x_']]'_x"><span class="id" type="notation">[[</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#set"><span class="id" type="constructor">set</span></a> 0 1<a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">;</span></a> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#set"><span class="id" type="constructor">set</span></a> 1 3<a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">;</span></a> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#jmp"><span class="id" type="constructor">jmp</span></a> (<a class="idref" href="compiler.html#L"><span class="id" type="definition">L</span></a> 1)<a class="idref" href="compiler.html#::'block'_x_'[['_x_']]'_x"><span class="id" type="notation">]]</span></a>  <a class="idref" href="compiler.html#::'block'_x_'[['_x_']]'_x"><span class="id" type="notation">block</span></a> <a class="idref" href="compiler.html#::'block'_x_'[['_x_']]'_x"><span class="id" type="notation">(</span></a><a class="idref" href="compiler.html#L"><span class="id" type="definition">L</span></a> 1<a class="idref" href="compiler.html#::'block'_x_'[['_x_']]'_x"><span class="id" type="notation">)</span></a> <a class="idref" href="compiler.html#::'block'_x_'[['_x_']]'_x"><span class="id" type="notation">[[</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#brz"><span class="id" type="constructor">brz</span></a> $0 (<a class="idref" href="compiler.html#L"><span class="id" type="definition">L</span></a> 2)<a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">;</span></a> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#dec"><span class="id" type="constructor">dec</span></a> $0 $0<a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">;</span></a> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#inc"><span class="id" type="constructor">inc</span></a> $1 $1<a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">;</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#jmp"><span class="id" type="constructor">jmp</span></a> (<a class="idref" href="compiler.html#L"><span class="id" type="definition">L</span></a> 1)<a class="idref" href="compiler.html#::'block'_x_'[['_x_']]'_x"><span class="id" type="notation">]]</span></a>  <a class="idref" href="compiler.html#::'block'_x_'[['_x_']]'_x"><span class="id" type="notation">block</span></a> <a class="idref" href="compiler.html#::'block'_x_'[['_x_']]'_x"><span class="id" type="notation">(</span></a><a class="idref" href="compiler.html#L"><span class="id" type="definition">L</span></a> 2<a class="idref" href="compiler.html#::'block'_x_'[['_x_']]'_x"><span class="id" type="notation">)</span></a> <a class="idref" href="compiler.html#::'block'_x_'[['_x_']]'_x"><span class="id" type="notation">[[</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#hlt"><span class="id" type="constructor">hlt</span></a><a class="idref" href="compiler.html#::'block'_x_'[['_x_']]'_x"><span class="id" type="notation">]]</span></a>  <a class="idref" href="compiler.html#::'end_program'"><span class="id" type="notation">end_program</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Il nous faut bien un prédicat pour aller chercher l'instruction 
+    associée à une étiquette. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Inductive</span> <a name="lookup"><span class="id" type="inductive">lookup</span></a> : <a class="idref" href="compiler.html#program"><span class="id" type="definition">program</span></a> -&gt; <a class="idref" href="compiler.html#label"><span class="id" type="definition">label</span></a> -&gt; <a class="idref" href="compiler.html#instr"><span class="id" type="inductive">instr</span></a> -&gt; <span class="id" type="keyword">Prop</span> :=<br/>
+&nbsp;&nbsp;|<a name="lookup_head"><span class="id" type="constructor">lookup_head</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">p</span> <span class="id" type="var">l</span> <span class="id" type="var">i</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#lookup"><span class="id" type="inductive">lookup</span></a> (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">l</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a> <span class="id" type="var">i</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a><span class="id" type="var">p</span>) <span class="id" type="var">l</span> <span class="id" type="var">i</span> <br/>
+&nbsp;&nbsp;| <a name="lookup_tail"><span class="id" type="constructor">lookup_tail</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">p</span> <span class="id" type="var">l</span> <span class="id" type="var">l'</span> <span class="id" type="var">i</span> <span class="id" type="var">i'</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#lookup"><span class="id" type="inductive">lookup</span></a> <span class="id" type="var">p</span> <span class="id" type="var">l</span> <span class="id" type="var">i</span> -&gt; <span class="id" type="var">l</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Logic.html#:type_scope:x_'<>'_x"><span class="id" type="notation">&lt;&gt;</span></a> <span class="id" type="var">l'</span> -&gt; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#lookup"><span class="id" type="inductive">lookup</span></a> (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">l'</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a> <span class="id" type="var">i'</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a><span class="id" type="var">p</span>) <span class="id" type="var">l</span> <span class="id" type="var">i</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Voici la sémantique petit pas de notre assembleur :
+    à vous de comprendre ce qu'elle signifie. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Inductive</span> <a name="step"><span class="id" type="inductive">step</span></a>: <a class="idref" href="compiler.html#program"><span class="id" type="definition">program</span></a> -&gt; <a class="idref" href="compiler.html#store"><span class="id" type="definition">store</span></a> -&gt; <a class="idref" href="compiler.html#instr"><span class="id" type="inductive">instr</span></a> -&gt; <a class="idref" href="compiler.html#store"><span class="id" type="definition">store</span></a> -&gt; <a class="idref" href="compiler.html#instr"><span class="id" type="inductive">instr</span></a> -&gt; <span class="id" type="keyword">Prop</span> :=<br/>
+&nbsp;&nbsp;| <a name="step_seq"><span class="id" type="constructor">step_seq</span></a>: <span class="id" type="keyword">forall</span> <span class="id" type="var">p</span> <span class="id" type="var">r</span> <span class="id" type="var">i1</span> <span class="id" type="var">i2</span> <span class="id" type="var">i3</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#step"><span class="id" type="inductive">step</span></a> <span class="id" type="var">p</span> <span class="id" type="var">r</span> (<a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">(</span></a><span class="id" type="var">i1</span> <a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">;</span></a> <span class="id" type="var">i2</span><a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">)</span></a> <a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">;</span></a> <span class="id" type="var">i3</span>) <span class="id" type="var">r</span> (<span class="id" type="var">i1</span> <a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">;</span></a> <span class="id" type="var">i2</span> <a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">;</span></a> <span class="id" type="var">i3</span>)<br/>
+<br/>
+&nbsp;&nbsp;| <a name="step_brz1"><span class="id" type="constructor">step_brz1</span></a>: <span class="id" type="keyword">forall</span> <span class="id" type="var">p</span> <span class="id" type="var">r</span> <span class="id" type="var">x</span> <span class="id" type="var">n</span> <span class="id" type="var">i</span> <span class="id" type="var">l</span>, <a class="idref" href="compiler.html#get"><span class="id" type="inductive">get</span></a> <span class="id" type="var">r</span> <span class="id" type="var">x</span> (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#S"><span class="id" type="constructor">S</span></a> <span class="id" type="var">n</span>) -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#step"><span class="id" type="inductive">step</span></a> <span class="id" type="var">p</span> <span class="id" type="var">r</span> (<a class="idref" href="compiler.html#brz"><span class="id" type="constructor">brz</span></a> <span class="id" type="var">x</span> <span class="id" type="var">l</span><a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">;</span></a> <span class="id" type="var">i</span>) <span class="id" type="var">r</span> <span class="id" type="var">i</span><br/>
+<br/>
+&nbsp;&nbsp;| <a name="step_brz2"><span class="id" type="constructor">step_brz2</span></a>: <span class="id" type="keyword">forall</span> <span class="id" type="var">p</span> <span class="id" type="var">r</span> <span class="id" type="var">x</span> <span class="id" type="var">l</span> <span class="id" type="var">i</span> <span class="id" type="var">i'</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#get"><span class="id" type="inductive">get</span></a> <span class="id" type="var">r</span> <span class="id" type="var">x</span> 0 -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#lookup"><span class="id" type="inductive">lookup</span></a> <span class="id" type="var">p</span> <span class="id" type="var">l</span> <span class="id" type="var">i'</span> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#step"><span class="id" type="inductive">step</span></a> <span class="id" type="var">p</span> <span class="id" type="var">r</span> (<a class="idref" href="compiler.html#brz"><span class="id" type="constructor">brz</span></a> <span class="id" type="var">x</span> <span class="id" type="var">l</span><a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">;</span></a> <span class="id" type="var">i</span>) <span class="id" type="var">r</span> <span class="id" type="var">i'</span><br/>
+<br/>
+&nbsp;&nbsp;| <a name="step_jmp"><span class="id" type="constructor">step_jmp</span></a>: <span class="id" type="keyword">forall</span> <span class="id" type="var">p</span> <span class="id" type="var">r</span> <span class="id" type="var">l</span> <span class="id" type="var">i</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#lookup"><span class="id" type="inductive">lookup</span></a> <span class="id" type="var">p</span> <span class="id" type="var">l</span> <span class="id" type="var">i</span> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#step"><span class="id" type="inductive">step</span></a> <span class="id" type="var">p</span> <span class="id" type="var">r</span> (<a class="idref" href="compiler.html#jmp"><span class="id" type="constructor">jmp</span></a> <span class="id" type="var">l</span>) <span class="id" type="var">r</span> <span class="id" type="var">i</span><br/>
+<br/>
+&nbsp;&nbsp;| <a name="step_set"><span class="id" type="constructor">step_set</span></a>: <span class="id" type="keyword">forall</span> <span class="id" type="var">p</span> <span class="id" type="var">r</span> <span class="id" type="var">r'</span> <span class="id" type="var">x</span> <span class="id" type="var">n</span> <span class="id" type="var">i</span>, <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#update"><span class="id" type="inductive">update</span></a> <span class="id" type="var">r</span> <span class="id" type="var">x</span> <span class="id" type="var">n</span> <span class="id" type="var">r'</span> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#step"><span class="id" type="inductive">step</span></a> <span class="id" type="var">p</span> <span class="id" type="var">r</span> (<a class="idref" href="compiler.html#set"><span class="id" type="constructor">set</span></a> <span class="id" type="var">x</span> <span class="id" type="var">n</span><a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">;</span></a> <span class="id" type="var">i</span>) <span class="id" type="var">r'</span> <span class="id" type="var">i</span><br/>
+<br/>
+&nbsp;&nbsp;| <a name="step_mov"><span class="id" type="constructor">step_mov</span></a>: <span class="id" type="keyword">forall</span> <span class="id" type="var">p</span> <span class="id" type="var">r</span> <span class="id" type="var">r'</span> <span class="id" type="var">x</span> <span class="id" type="var">y</span> <span class="id" type="var">v</span> <span class="id" type="var">i</span>, <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#get"><span class="id" type="inductive">get</span></a> <span class="id" type="var">r</span> <span class="id" type="var">y</span> <span class="id" type="var">v</span> -&gt; <a class="idref" href="compiler.html#update"><span class="id" type="inductive">update</span></a> <span class="id" type="var">r</span> <span class="id" type="var">x</span> <span class="id" type="var">v</span> <span class="id" type="var">r'</span> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#step"><span class="id" type="inductive">step</span></a> <span class="id" type="var">p</span> <span class="id" type="var">r</span> (<a class="idref" href="compiler.html#mov"><span class="id" type="constructor">mov</span></a> <span class="id" type="var">x</span> <span class="id" type="var">y</span><a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">;</span></a> <span class="id" type="var">i</span>) <span class="id" type="var">r'</span> <span class="id" type="var">i</span><br/>
+<br/>
+&nbsp;&nbsp;| <a name="step_inc"><span class="id" type="constructor">step_inc</span></a>: <span class="id" type="keyword">forall</span> <span class="id" type="var">p</span> <span class="id" type="var">r</span> <span class="id" type="var">r'</span> <span class="id" type="var">x</span> <span class="id" type="var">y</span> <span class="id" type="var">v</span> <span class="id" type="var">c</span>, <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#get"><span class="id" type="inductive">get</span></a> <span class="id" type="var">r</span> <span class="id" type="var">y</span> <span class="id" type="var">v</span> -&gt; <a class="idref" href="compiler.html#update"><span class="id" type="inductive">update</span></a> <span class="id" type="var">r</span> <span class="id" type="var">x</span> (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#S"><span class="id" type="constructor">S</span></a> <span class="id" type="var">v</span>) <span class="id" type="var">r'</span> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#step"><span class="id" type="inductive">step</span></a> <span class="id" type="var">p</span> <span class="id" type="var">r</span> (<a class="idref" href="compiler.html#inc"><span class="id" type="constructor">inc</span></a> <span class="id" type="var">x</span> <span class="id" type="var">y</span> <a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">;</span></a>  <span class="id" type="var">c</span>) <span class="id" type="var">r'</span> <span class="id" type="var">c</span><br/>
+&nbsp;</div>
+
+<div class="doc">
+Ici, on utilise la fonction prédécesseur de la bibliothèque 
+    standard. Nous sommes contraints de la désigner par <span class="inlinecode"><span class="id" type="var">Peano.pred</span></span>
+    car on l'a masquée en définissant <span class="inlinecode"><a class="idref" href="compiler.html#term"><span class="id" type="inductive">term</span></a></span>. 
+</div>
+<div class="code">
+&nbsp;&nbsp;| <a name="step_dec"><span class="id" type="constructor">step_dec</span></a>: <span class="id" type="keyword">forall</span> <span class="id" type="var">p</span> <span class="id" type="var">r</span> <span class="id" type="var">r'</span> <span class="id" type="var">x</span> <span class="id" type="var">y</span> <span class="id" type="var">v</span> <span class="id" type="var">c</span>, <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#get"><span class="id" type="inductive">get</span></a> <span class="id" type="var">r</span> <span class="id" type="var">y</span> <span class="id" type="var">v</span> -&gt; <a class="idref" href="compiler.html#update"><span class="id" type="inductive">update</span></a> <span class="id" type="var">r</span> <span class="id" type="var">x</span> (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Peano.html#pred"><span class="id" type="definition">Peano.pred</span></a> <span class="id" type="var">v</span>) <span class="id" type="var">r'</span> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#step"><span class="id" type="inductive">step</span></a> <span class="id" type="var">p</span> <span class="id" type="var">r</span> (<a class="idref" href="compiler.html#dec"><span class="id" type="constructor">dec</span></a> <span class="id" type="var">x</span> <span class="id" type="var">y</span> <a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">;</span></a>  <span class="id" type="var">c</span>) <span class="id" type="var">r'</span> <span class="id" type="var">c</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Une notation fort utile pour les petit pas. 
+</div>
+<div class="code">
+<span class="id" type="var">Notation </span><a name="::'('_x_'|'_x_')'_'--'_x_'-->'_'('_x_'|'_x_')'"><span class="id" type="notation">"</span></a>( i1 | r1 )  '--' p '--&gt;' ( i2 | r2 )" := <br/>
+&nbsp;&nbsp;(<a class="idref" href="compiler.html#step"><span class="id" type="inductive">step</span></a> <span class="id" type="var">p</span> <span class="id" type="var">i1</span> <span class="id" type="var">r1</span> <span class="id" type="var">i2</span> <span class="id" type="var">r2</span>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+La cloture réflexo-transitive de <span class="inlinecode"><a class="idref" href="compiler.html#step"><span class="id" type="inductive">step</span></a></span> est donnée par le prédicat suivant: 
+</div>
+<div class="code">
+<span class="id" type="keyword">Inductive</span> <a name="run"><span class="id" type="inductive">run</span></a> : <a class="idref" href="compiler.html#program"><span class="id" type="definition">program</span></a> -&gt; <a class="idref" href="compiler.html#store"><span class="id" type="definition">store</span></a> -&gt; <a class="idref" href="compiler.html#instr"><span class="id" type="inductive">instr</span></a> -&gt; <a class="idref" href="compiler.html#store"><span class="id" type="definition">store</span></a> -&gt; <a class="idref" href="compiler.html#instr"><span class="id" type="inductive">instr</span></a> -&gt; <span class="id" type="keyword">Prop</span> := <br/>
+&nbsp;&nbsp;| <a name="run_refl"><span class="id" type="constructor">run_refl</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">p</span> <span class="id" type="var">r</span> <span class="id" type="var">c</span>, <a class="idref" href="compiler.html#run"><span class="id" type="inductive">run</span></a> <span class="id" type="var">p</span> <span class="id" type="var">r</span> <span class="id" type="var">c</span> <span class="id" type="var">r</span> <span class="id" type="var">c</span><br/>
+&nbsp;&nbsp;| <a name="run_step_run"><span class="id" type="constructor">run_step_run</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">p</span> <span class="id" type="var">r</span> <span class="id" type="var">c</span> <span class="id" type="var">r'</span> <span class="id" type="var">c'</span> <span class="id" type="var">r''</span> <span class="id" type="var">c''</span>, <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#step"><span class="id" type="inductive">step</span></a> <span class="id" type="var">p</span> <span class="id" type="var">r</span> <span class="id" type="var">c</span> <span class="id" type="var">r'</span> <span class="id" type="var">c'</span> -&gt; <a class="idref" href="compiler.html#run"><span class="id" type="inductive">run</span></a> <span class="id" type="var">p</span> <span class="id" type="var">r'</span> <span class="id" type="var">c'</span> <span class="id" type="var">r''</span> <span class="id" type="var">c''</span> -&gt; <a class="idref" href="compiler.html#run"><span class="id" type="inductive">run</span></a> <span class="id" type="var">p</span> <span class="id" type="var">r</span> <span class="id" type="var">c</span> <span class="id" type="var">r''</span> <span class="id" type="var">c''</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Avec sa notation. 
+</div>
+<div class="code">
+<span class="id" type="var">Notation </span><a name="::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">"</span></a>( i1 | r1 )  '==' p '==&gt;'  ( i2 | r2 )" := <br/>
+&nbsp;&nbsp;(<a class="idref" href="compiler.html#run"><span class="id" type="inductive">run</span></a> <span class="id" type="var">p</span> <span class="id" type="var">i1</span> <span class="id" type="var">r1</span> <span class="id" type="var">i2</span> <span class="id" type="var">r2</span>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Il faut prouver que <span class="inlinecode"><a class="idref" href="compiler.html#run"><span class="id" type="inductive">run</span></a></span> est bien transitive. 
+<ul>
+<li> Difficulté: 0. 
+</li>
+</ul>
+
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="run_trans"><span class="id" type="lemma">run_trans</span></a>: <br/>
+&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">p</span> <span class="id" type="var">r</span> <span class="id" type="var">c</span> <span class="id" type="var">r'</span> <span class="id" type="var">c'</span>, <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">r</span><a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">|</span></a><span class="id" type="var">c</span><a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">)</span></a> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">==</span></a> <span class="id" type="var">p</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">==&gt;</span></a> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">r'</span><a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">|</span></a><span class="id" type="var">c'</span><a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">)</span></a> -&gt; <br/>
+&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">r''</span> <span class="id" type="var">c''</span>, <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">r'</span><a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">|</span></a> <span class="id" type="var">c'</span><a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">)</span></a> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">==</span></a> <span class="id" type="var">p</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">==&gt;</span></a> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">r''</span><a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">|</span></a> <span class="id" type="var">c''</span><a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">)</span></a> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-&gt; <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">r</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">|</span></a> <span class="id" type="var">c</span><a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">)</span></a> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">==</span></a> <span class="id" type="var">p</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">==&gt;</span></a> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">r''</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">|</span></a> <span class="id" type="var">c''</span><a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">)</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Ça peut toujours servir. 
+<ul>
+<li> Difficulté: 0. 
+</li>
+</ul>
+
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="run_step"><span class="id" type="lemma">run_step</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">p</span> <span class="id" type="var">r</span> <span class="id" type="var">c</span> <span class="id" type="var">r'</span> <span class="id" type="var">c'</span>, <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#step"><span class="id" type="inductive">step</span></a> <span class="id" type="var">p</span> <span class="id" type="var">r</span> <span class="id" type="var">c</span> <span class="id" type="var">r'</span> <span class="id" type="var">c'</span> -&gt; <a class="idref" href="compiler.html#run"><span class="id" type="inductive">run</span></a> <span class="id" type="var">p</span> <span class="id" type="var">r</span> <span class="id" type="var">c</span> <span class="id" type="var">r'</span> <span class="id" type="var">c'</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<span class="inlinecode"><a class="idref" href="compiler.html#launch"><span class="id" type="inductive">launch</span></a> <span class="id" type="var">p</span> ρ<span class="id" type="var">₁</span> ρ<span class="id" type="var">₂</span></span> signifie que si nous lançons <span class="inlinecode"><span class="id" type="var">p</span></span> 
+    dans l'environnement <span class="inlinecode">ρ<span class="id" type="var">₁</span></span> en commençant par l'instruction 
+    à l'étiquette 0, alors nous aboutissons à une instruction 
+    <span class="inlinecode"><a class="idref" href="compiler.html#hlt"><span class="id" type="constructor">hlt</span></a></span> dans un environnement <span class="inlinecode">ρ<span class="id" type="var">₂</span></span>. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Inductive</span> <a name="launch"><span class="id" type="inductive">launch</span></a> : <a class="idref" href="compiler.html#program"><span class="id" type="definition">program</span></a> -&gt; <a class="idref" href="compiler.html#store"><span class="id" type="definition">store</span></a> -&gt; <a class="idref" href="compiler.html#store"><span class="id" type="definition">store</span></a> -&gt; <span class="id" type="keyword">Prop</span>:= <br/>
+&nbsp;&nbsp;| <a name="launch_go"><span class="id" type="constructor">launch_go</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">p</span> <span class="id" type="var">c</span> <span class="id" type="var">r1</span> <span class="id" type="var">r2</span>, <a class="idref" href="compiler.html#lookup"><span class="id" type="inductive">lookup</span></a> <span class="id" type="var">p</span> (<a class="idref" href="compiler.html#L"><span class="id" type="definition">L</span></a> 0) <span class="id" type="var">c</span> -&gt; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">r1</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">|</span></a> <span class="id" type="var">c</span><a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">)</span></a>  <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">==</span></a> <span class="id" type="var">p</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">==&gt;</span></a> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">r2</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">|</span></a> <a class="idref" href="compiler.html#hlt"><span class="id" type="constructor">hlt</span></a><a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">)</span></a><br/>
+&nbsp;&nbsp;&nbsp;-&gt; <a class="idref" href="compiler.html#launch"><span class="id" type="inductive">launch</span></a> <span class="id" type="var">p</span> <span class="id" type="var">r1</span> <span class="id" type="var">r2</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+On utilisera cette notation pour <span class="inlinecode"><a class="idref" href="compiler.html#launch"><span class="id" type="inductive">launch</span></a></span>. 
+</div>
+<div class="code">
+<span class="id" type="var">Notation </span><a name="::x_'=='_x_'==>'_x"><span class="id" type="notation">"</span></a>r1  '==' p '==&gt;'  r2 " := <br/>
+&nbsp;&nbsp;(<a class="idref" href="compiler.html#launch"><span class="id" type="inductive">launch</span></a> <span class="id" type="var">p</span> <span class="id" type="var">r1</span> <span class="id" type="var">r2</span>) (<span class="id" type="tactic">at</span> <span class="id" type="var">level</span> 0).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Cette preuve est facile, mais si vous n'utilisez pas
+    toute la puissance des tactiques, elle risque aussi 
+    d'être longue. 
+<ul>
+<li> Difficulté: 1. 
+</li>
+</ul>
+
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="example_test"><span class="id" type="lemma">example_test</span></a>: <br/>
+&nbsp;&nbsp;<a class="idref" href="compiler.html#::x_'=='_x_'==>'_x"><span class="id" type="notation">(</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a>0<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a>0<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a>1<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a>0<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#nil"><span class="id" type="constructor">nil</span></a><a class="idref" href="compiler.html#::x_'=='_x_'==>'_x"><span class="id" type="notation">)</span></a> <a class="idref" href="compiler.html#::x_'=='_x_'==>'_x"><span class="id" type="notation">==</span></a> <a class="idref" href="compiler.html#example"><span class="id" type="definition">example</span></a> <a class="idref" href="compiler.html#::x_'=='_x_'==>'_x"><span class="id" type="notation">==&gt;</span></a> <a class="idref" href="compiler.html#::x_'=='_x_'==>'_x"><span class="id" type="notation">(</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a>0<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a>0<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a>1<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a>4<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#nil"><span class="id" type="constructor">nil</span></a><a class="idref" href="compiler.html#::x_'=='_x_'==>'_x"><span class="id" type="notation">)</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab5"></a><h1 class="section">Compilation des expressions arithmétiques</h1>
+
+</div>
+<div class="code">
+
+<br/>
+</div>
+
+<div class="doc">
+La fonction ci-dessous implémente la compilation 
+    des termes. Elle n'est pas difficile à 
+    comprendre:
+    <span class="inlinecode"><a class="idref" href="compiler.html#compile_term"><span class="id" type="definition">compile_term</span></a> <span class="id" type="var">res</span> <span class="id" type="var">acc</span> <span class="id" type="var">e</span></span> produit du code qui 
+    va placer le résultat de l'évaluation de <span class="inlinecode"><span class="id" type="var">e</span></span> 
+    dans la variable <span class="inlinecode"><span class="id" type="var">res</span></span> et se poursuivre avec 
+    l'instruction <span class="inlinecode"><span class="id" type="var">acc</span></span>. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Fixpoint</span> <a name="compile_term"><span class="id" type="definition">compile_term</span></a> <span class="id" type="var">res</span> <span class="id" type="var">acc</span> <span class="id" type="var">e</span> := <span class="id" type="keyword">match</span> <span class="id" type="var">e</span> <span class="id" type="keyword">with</span> <br/>
+&nbsp;&nbsp;| <a class="idref" href="compiler.html#tcst"><span class="id" type="constructor">tcst</span></a> <span class="id" type="var">n</span> =&gt; <a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">(</span></a><a class="idref" href="compiler.html#set"><span class="id" type="constructor">set</span></a> <span class="id" type="var">res</span> <span class="id" type="var">n</span><a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">);</span></a><span class="id" type="var">acc</span><br/>
+&nbsp;&nbsp;| <a class="idref" href="compiler.html#tvar"><span class="id" type="constructor">tvar</span></a> <span class="id" type="var">x</span> =&gt; <a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">(</span></a><a class="idref" href="compiler.html#mov"><span class="id" type="constructor">mov</span></a> <span class="id" type="var">res</span> <span class="id" type="var">x</span><a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">);</span></a><span class="id" type="var">acc</span><br/>
+&nbsp;&nbsp;| <a class="idref" href="compiler.html#succ"><span class="id" type="constructor">succ</span></a> <span class="id" type="var">e</span> =&gt; <a class="idref" href="compiler.html#compile_term"><span class="id" type="definition">compile_term</span></a> <span class="id" type="var">res</span> (<a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">(</span></a><a class="idref" href="compiler.html#inc"><span class="id" type="constructor">inc</span></a> <span class="id" type="var">res</span> <span class="id" type="var">res</span><a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">);</span></a><span class="id" type="var">acc</span>) <span class="id" type="var">e</span><br/>
+&nbsp;&nbsp;| <a class="idref" href="compiler.html#pred"><span class="id" type="constructor">pred</span></a> <span class="id" type="var">e</span> =&gt; <a class="idref" href="compiler.html#compile_term"><span class="id" type="definition">compile_term</span></a> <span class="id" type="var">res</span> (<a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">(</span></a><a class="idref" href="compiler.html#dec"><span class="id" type="constructor">dec</span></a> <span class="id" type="var">res</span> <span class="id" type="var">res</span><a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">);</span></a><span class="id" type="var">acc</span>) <span class="id" type="var">e</span><br/>
+&nbsp;&nbsp;<span class="id" type="keyword">end</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Il faut donc prouver qu'elle est correcte: 
+<ul>
+<li> Difficulté: 2. 
+</li>
+</ul>
+
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="compile_term_sound"><span class="id" type="lemma">compile_term_sound</span></a> : <br/>
+&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">r</span> <span class="id" type="var">e</span> <span class="id" type="var">v</span>, <a class="idref" href="compiler.html#eval"><span class="id" type="inductive">eval</span></a> <span class="id" type="var">r</span> <span class="id" type="var">e</span> <span class="id" type="var">v</span> -&gt; <span class="id" type="keyword">forall</span> <span class="id" type="var">p</span> <span class="id" type="var">res</span> <span class="id" type="var">r'</span> <span class="id" type="var">acc</span>, <a class="idref" href="compiler.html#update"><span class="id" type="inductive">update</span></a> <span class="id" type="var">r</span> <span class="id" type="var">res</span> <span class="id" type="var">v</span> <span class="id" type="var">r'</span> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">r</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">|</span></a> <a class="idref" href="compiler.html#compile_term"><span class="id" type="definition">compile_term</span></a> <span class="id" type="var">res</span> <span class="id" type="var">acc</span> <span class="id" type="var">e</span><a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">)</span></a> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">==</span></a> <span class="id" type="var">p</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">==&gt;</span></a> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">r'</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">|</span></a> <span class="id" type="var">acc</span><a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">)</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab6"></a><h1 class="section">Linéarisation de IMP</h1>
+
+</div>
+<div class="code">
+
+<br/>
+</div>
+
+<div class="doc">
+Vous entrez maintenant dans la section principale du devoir: 
+    c'est ici qu'on va transformer le code structuré de IMP en 
+    une liste d'instructions. 
+
+<br/> <br/>
+    Mais avant ça, il va falloir traiter la partie la plus 
+    "bureaucratique" du devoir: la gestion des étiquettes 
+    du programme. 
+</div>
+<div class="code">
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab7"></a><h2 class="section">Réservations des étiquettes.</h2>
+
+</div>
+<div class="code">
+
+<br/>
+</div>
+
+<div class="doc">
+Le prédicat <span class="inlinecode"><a class="idref" href="compiler.html#reserved"><span class="id" type="inductive">reserved</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p</span></span> signifie que l'étiquette <span class="inlinecode"><span class="id" type="var">l</span></span> 
+    n'apparaît pas dans le programme <span class="inlinecode"><span class="id" type="var">p</span></span>. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Inductive</span> <a name="reserved"><span class="id" type="inductive">reserved</span></a> : <a class="idref" href="compiler.html#label"><span class="id" type="definition">label</span></a> -&gt; <a class="idref" href="compiler.html#program"><span class="id" type="definition">program</span></a> -&gt; <span class="id" type="keyword">Prop</span> :=<br/>
+&nbsp;&nbsp;| <a name="reserved_nil"><span class="id" type="constructor">reserved_nil</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">l</span>, <a class="idref" href="compiler.html#reserved"><span class="id" type="inductive">reserved</span></a> <span class="id" type="var">l</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#nil"><span class="id" type="constructor">nil</span></a> <br/>
+&nbsp;&nbsp;| <a name="reserved_tail"><span class="id" type="constructor">reserved_tail</span></a> : <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">l</span> <span class="id" type="var">l'</span> <span class="id" type="var">x</span> <span class="id" type="var">p</span>, <a class="idref" href="compiler.html#reserved"><span class="id" type="inductive">reserved</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p</span> -&gt; <span class="id" type="var">l</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Logic.html#:type_scope:x_'<>'_x"><span class="id" type="notation">&lt;&gt;</span></a> <span class="id" type="var">l'</span> -&gt; <a class="idref" href="compiler.html#reserved"><span class="id" type="inductive">reserved</span></a>  <span class="id" type="var">l</span> (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">l'</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a><span class="id" type="var">x</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a><span class="id" type="var">p</span>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Si ça n'apparaît pas, ça n'apparaît pas.
+<ul>
+<li> Difficulté: 2. 
+
+</li>
+<li> Astuce: Il va falloir utiliser <span class="inlinecode"><span class="id" type="tactic">inversion</span></span>. 
+</li>
+</ul>
+
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="reserved_lookup"><span class="id" type="lemma">reserved_lookup</span></a> : <br/>
+&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">p</span> <span class="id" type="var">l</span>, <a class="idref" href="compiler.html#reserved"><span class="id" type="inductive">reserved</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p</span> -&gt; <span class="id" type="keyword">forall</span> <span class="id" type="var">c</span>, <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Logic.html#:type_scope:'~'_x"><span class="id" type="notation">~</span></a><a class="idref" href="compiler.html#lookup"><span class="id" type="inductive">lookup</span></a> <span class="id" type="var">p</span> <span class="id" type="var">l</span> <span class="id" type="var">c</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Le prédicat <span class="inlinecode"><a class="idref" href="compiler.html#safe"><span class="id" type="inductive">safe</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p</span></span> dit que toutes les étiquettes 
+    de <span class="inlinecode"><span class="id" type="var">p</span></span> n'apparaissent qu'une seule fois et sont strictement 
+     inférieures   à <span class="inlinecode"><span class="id" type="var">l</span></span>. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Inductive</span> <a name="safe"><span class="id" type="inductive">safe</span></a> : <a class="idref" href="compiler.html#label"><span class="id" type="definition">label</span></a> -&gt; <a class="idref" href="compiler.html#program"><span class="id" type="definition">program</span></a> -&gt; <span class="id" type="keyword">Prop</span> :=<br/>
+&nbsp;&nbsp;| <a name="safe_nil"><span class="id" type="constructor">safe_nil</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">l</span>, <a class="idref" href="compiler.html#safe"><span class="id" type="inductive">safe</span></a> <span class="id" type="var">l</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#nil"><span class="id" type="constructor">nil</span></a><br/>
+&nbsp;&nbsp;| <a name="safe_cons"><span class="id" type="constructor">safe_cons</span></a> : <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">p</span> <span class="id" type="var">c</span> <span class="id" type="var">l</span> <span class="id" type="var">l'</span>, <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#reserved"><span class="id" type="inductive">reserved</span></a> <span class="id" type="var">l'</span> <span class="id" type="var">p</span> -&gt; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#safe"><span class="id" type="inductive">safe</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p</span> -&gt; <span class="id" type="var">l'</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Peano.html#:nat_scope:x_'<'_x"><span class="id" type="notation">&lt;</span></a> <span class="id" type="var">l</span> -&gt; <a class="idref" href="compiler.html#safe"><span class="id" type="inductive">safe</span></a> <span class="id" type="var">l</span> (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">l'</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a> <span class="id" type="var">c</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a><span class="id" type="var">p</span>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Les deux lemmes suivants vont vous être utiles. 
+<ul>
+<li> Difficulté : 0. 
+</li>
+</ul>
+
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="lt_diff"><span class="id" type="lemma">lt_diff</span></a>: <br/>
+&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">a</span> <span class="id" type="var">b</span>, <span class="id" type="var">b</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Peano.html#:nat_scope:x_'<'_x"><span class="id" type="notation">&lt;</span></a> <span class="id" type="var">a</span> -&gt; <span class="id" type="var">a</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Logic.html#:type_scope:x_'<>'_x"><span class="id" type="notation">&lt;&gt;</span></a> <span class="id" type="var">b</span>.<br/>
+
+<br/>
+<span class="id" type="keyword">Lemma</span> <a name="lt_diff2"><span class="id" type="lemma">lt_diff2</span></a>: <br/>
+&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">a</span> <span class="id" type="var">b</span>, <span class="id" type="var">a</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Peano.html#:nat_scope:x_'<'_x"><span class="id" type="notation">&lt;</span></a> <span class="id" type="var">b</span> -&gt; <span class="id" type="var">a</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Logic.html#:type_scope:x_'<>'_x"><span class="id" type="notation">&lt;&gt;</span></a> <span class="id" type="var">b</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+On peut toujours affaiblir <span class="inlinecode"><a class="idref" href="compiler.html#safe"><span class="id" type="inductive">safe</span></a></span>. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="safe_weak"><span class="id" type="lemma">safe_weak</span></a>: <br/>
+&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">l</span> <span class="id" type="var">p</span>, <a class="idref" href="compiler.html#safe"><span class="id" type="inductive">safe</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p</span> -&gt; <span class="id" type="keyword">forall</span> <span class="id" type="var">l'</span>, <span class="id" type="var">l</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Peano.html#:nat_scope:x_'<='_x"><span class="id" type="notation">&lt;=</span></a> <span class="id" type="var">l'</span> -&gt; <a class="idref" href="compiler.html#safe"><span class="id" type="inductive">safe</span></a> <span class="id" type="var">l'</span> <span class="id" type="var">p</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Difficulté : 0. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="safe_reserved"><span class="id" type="lemma">safe_reserved</span></a>: <br/>
+&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">l</span> <span class="id" type="var">p</span>, <a class="idref" href="compiler.html#safe"><span class="id" type="inductive">safe</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p</span> -&gt; <span class="id" type="keyword">forall</span> <span class="id" type="var">l'</span>, <span class="id" type="var">l</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Peano.html#:nat_scope:x_'<='_x"><span class="id" type="notation">&lt;=</span></a> <span class="id" type="var">l'</span> -&gt; <a class="idref" href="compiler.html#reserved"><span class="id" type="inductive">reserved</span></a> <span class="id" type="var">l'</span> <span class="id" type="var">p</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Le prédicat <span class="inlinecode"><a class="idref" href="compiler.html#sub_program"><span class="id" type="inductive">sub_program</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p</span> <span class="id" type="var">p'</span></span> signifie que 
+    <span class="inlinecode"><span class="id" type="var">p</span></span> et <span class="inlinecode"><span class="id" type="var">p'</span></span> vérifient <span class="inlinecode"><a class="idref" href="compiler.html#safe"><span class="id" type="inductive">safe</span></a> <span class="id" type="var">l</span></span> et que <span class="inlinecode"><span class="id" type="var">p</span></span> est 
+    obtenu en enlevant des instructions étiquetées de <span class="inlinecode"><span class="id" type="var">p'</span></span>. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Inductive</span> <a name="sub_program"><span class="id" type="inductive">sub_program</span></a> : <a class="idref" href="compiler.html#label"><span class="id" type="definition">label</span></a> -&gt; <a class="idref" href="compiler.html#program"><span class="id" type="definition">program</span></a> -&gt; <a class="idref" href="compiler.html#program"><span class="id" type="definition">program</span></a> -&gt; <span class="id" type="keyword">Prop</span> := <br/>
+&nbsp;&nbsp;| <a name="sub_program_refl"><span class="id" type="constructor">sub_program_refl</span></a>: <span class="id" type="keyword">forall</span> <span class="id" type="var">l</span> <span class="id" type="var">p</span>, <a class="idref" href="compiler.html#safe"><span class="id" type="inductive">safe</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p</span> -&gt; <a class="idref" href="compiler.html#sub_program"><span class="id" type="inductive">sub_program</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p</span> <span class="id" type="var">p</span><br/>
+&nbsp;&nbsp;| <a name="sub_program_cons"><span class="id" type="constructor">sub_program_cons</span></a>: <span class="id" type="keyword">forall</span> <span class="id" type="var">p</span> <span class="id" type="var">q</span> <span class="id" type="var">l</span>, <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#sub_program"><span class="id" type="inductive">sub_program</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p</span> <span class="id" type="var">q</span> -&gt; <span class="id" type="keyword">forall</span> <span class="id" type="var">l'</span>, <span class="id" type="var">l'</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Peano.html#:nat_scope:x_'<'_x"><span class="id" type="notation">&lt;</span></a> <span class="id" type="var">l</span> -&gt; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#reserved"><span class="id" type="inductive">reserved</span></a> <span class="id" type="var">l'</span> <span class="id" type="var">q</span> -&gt; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">c</span>, <a class="idref" href="compiler.html#sub_program"><span class="id" type="inductive">sub_program</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p</span> (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">l'</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a> <span class="id" type="var">c</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a><span class="id" type="var">q</span>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Difficulté : 0. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="sub_program_nil"><span class="id" type="lemma">sub_program_nil</span></a> : <br/>
+&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">l</span> <span class="id" type="var">p</span>, <a class="idref" href="compiler.html#safe"><span class="id" type="inductive">safe</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p</span> -&gt; <a class="idref" href="compiler.html#sub_program"><span class="id" type="inductive">sub_program</span></a> <span class="id" type="var">l</span> <a class="idref" href="compiler.html#::'[]'"><span class="id" type="notation">[]</span></a> <span class="id" type="var">p</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Difficulté : 0. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="sub_program_safe_left"><span class="id" type="lemma">sub_program_safe_left</span></a>: <br/>
+&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">l</span> <span class="id" type="var">p</span> <span class="id" type="var">p'</span>, <a class="idref" href="compiler.html#sub_program"><span class="id" type="inductive">sub_program</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p</span> <span class="id" type="var">p'</span> -&gt; <a class="idref" href="compiler.html#safe"><span class="id" type="inductive">safe</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Difficulté : 0. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="sub_program_safe_right"><span class="id" type="lemma">sub_program_safe_right</span></a>: <br/>
+&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">l</span> <span class="id" type="var">p</span> <span class="id" type="var">p'</span>, <a class="idref" href="compiler.html#sub_program"><span class="id" type="inductive">sub_program</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p</span> <span class="id" type="var">p'</span> -&gt; <a class="idref" href="compiler.html#safe"><span class="id" type="inductive">safe</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p'</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+On peut également affaiblir <span class="inlinecode"><a class="idref" href="compiler.html#sub_program"><span class="id" type="inductive">sub_program</span></a></span>. 
+<ul>
+<li> Difficulté : 0. 
+</li>
+</ul>
+
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="sub_program_weak"><span class="id" type="lemma">sub_program_weak</span></a> : <br/>
+&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">l</span> <span class="id" type="var">p</span> <span class="id" type="var">p'</span>, <a class="idref" href="compiler.html#sub_program"><span class="id" type="inductive">sub_program</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p</span> <span class="id" type="var">p'</span> -&gt; <span class="id" type="keyword">forall</span> <span class="id" type="var">l'</span>, <span class="id" type="var">l</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Peano.html#:nat_scope:x_'<='_x"><span class="id" type="notation">&lt;=</span></a> <span class="id" type="var">l'</span> -&gt; <a class="idref" href="compiler.html#sub_program"><span class="id" type="inductive">sub_program</span></a> <span class="id" type="var">l'</span> <span class="id" type="var">p</span> <span class="id" type="var">p'</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Si <span class="inlinecode"><span class="id" type="var">p</span></span> est un sous-programme de <span class="inlinecode"><span class="id" type="var">p'</span></span> et si <span class="inlinecode"><span class="id" type="var">l</span></span> est associée à <span class="inlinecode"><span class="id" type="var">c</span></span>
+    dans <span class="inlinecode"><span class="id" type="var">p</span></span>, alors elle l'est aussi dans <span class="inlinecode"><span class="id" type="var">p'</span></span>. 
+<ul>
+<li> Difficulté : 1. 
+</li>
+</ul>
+
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="sub_program_lookup"><span class="id" type="lemma">sub_program_lookup</span></a>: <br/>
+&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">l</span> <span class="id" type="var">p</span> <span class="id" type="var">p'</span>, <a class="idref" href="compiler.html#sub_program"><span class="id" type="inductive">sub_program</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p</span> <span class="id" type="var">p'</span> -&gt; <span class="id" type="keyword">forall</span> <span class="id" type="var">l'</span> <span class="id" type="var">c</span>, <a class="idref" href="compiler.html#lookup"><span class="id" type="inductive">lookup</span></a> <span class="id" type="var">p</span> <span class="id" type="var">l'</span> <span class="id" type="var">c</span> -&gt; <a class="idref" href="compiler.html#lookup"><span class="id" type="inductive">lookup</span></a> <span class="id" type="var">p'</span> <span class="id" type="var">l'</span> <span class="id" type="var">c</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Le prédicat <span class="inlinecode"><a class="idref" href="compiler.html#sub_program"><span class="id" type="inductive">sub_program</span></a></span> est transitif. 
+<ul>
+<li> Difficulté: 0. 
+</li>
+</ul>
+
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="sub_program_trans"><span class="id" type="lemma">sub_program_trans</span></a>: <br/>
+&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">l</span> <span class="id" type="var">p</span> <span class="id" type="var">p'</span>, <a class="idref" href="compiler.html#sub_program"><span class="id" type="inductive">sub_program</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p</span> <span class="id" type="var">p'</span> -&gt; <span class="id" type="keyword">forall</span> <span class="id" type="var">p''</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#sub_program"><span class="id" type="inductive">sub_program</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p'</span> <span class="id" type="var">p''</span> -&gt; <a class="idref" href="compiler.html#sub_program"><span class="id" type="inductive">sub_program</span></a> <span class="id" type="var">l</span> <span class="id" type="var">p</span> <span class="id" type="var">p''</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Voici une fonction qui pourrait vous donner du fil à retordre: 
+    <span class="inlinecode"><a class="idref" href="compiler.html#reserve_labels"><span class="id" type="definition">reserve_labels</span></a> <span class="id" type="var">l</span> <span class="id" type="var">k</span></span> retourne un entier supérieur ou égal à <span class="inlinecode"><span class="id" type="var">l</span></span> et
+    la différence <span class="inlinecode"><a class="idref" href="compiler.html#reserve_labels"><span class="id" type="definition">reserve_labels</span></a>( <span class="id" type="var">l</span> <span class="id" type="var">k</span>) - <span class="id" type="var">l</span></span> est le nombre d'étiquettes
+    qu'il va falloir créer pour compiler <span class="inlinecode"><span class="id" type="var">k</span></span>. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Fixpoint</span> <a name="reserve_labels"><span class="id" type="definition">reserve_labels</span></a> <span class="id" type="var">label</span> <span class="id" type="var">k</span>  := <span class="id" type="keyword">match</span> <span class="id" type="var">k</span> <span class="id" type="keyword">with</span> <br/>
+&nbsp;&nbsp;| <a class="idref" href="compiler.html#skip"><span class="id" type="constructor">skip</span></a> =&gt; <span class="id" type="var">label</span><br/>
+&nbsp;&nbsp;| <a class="idref" href="compiler.html#seqi"><span class="id" type="constructor">seqi</span></a> <span class="id" type="var">k1</span> <span class="id" type="var">k2</span> =&gt; <a class="idref" href="compiler.html#reserve_labels"><span class="id" type="definition">reserve_labels</span></a> (<a class="idref" href="compiler.html#reserve_labels"><span class="id" type="definition">reserve_labels</span></a> <span class="id" type="var">label</span> <span class="id" type="var">k2</span>) <span class="id" type="var">k1</span><br/>
+&nbsp;&nbsp;| <a class="idref" href="compiler.html#ass"><span class="id" type="constructor">ass</span></a> <span class="id" type="var">x</span> <span class="id" type="var">t</span> =&gt; <span class="id" type="var">label</span><br/>
+&nbsp;&nbsp;| <a class="idref" href="compiler.html#ifte"><span class="id" type="constructor">ifte</span></a> <span class="id" type="var">x</span> <span class="id" type="var">k1</span> <span class="id" type="var">k2</span> =&gt; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">else_begin</span> := <span class="id" type="var">label</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">if_end</span> := <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#S"><span class="id" type="constructor">S</span></a> <span class="id" type="var">label</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">label</span> := 2 <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Peano.html#:nat_scope:x_'+'_x"><span class="id" type="notation">+</span></a> <span class="id" type="var">label</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#reserve_labels"><span class="id" type="definition">reserve_labels</span></a> (<a class="idref" href="compiler.html#reserve_labels"><span class="id" type="definition">reserve_labels</span></a> <span class="id" type="var">label</span> <span class="id" type="var">k1</span>) <span class="id" type="var">k2</span><br/>
+&nbsp;&nbsp;| <a class="idref" href="compiler.html#while"><span class="id" type="constructor">while</span></a> <span class="id" type="var">x</span> <span class="id" type="var">k</span> =&gt; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">while_begin</span> := <span class="id" type="var">label</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">while_end</span> := <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#S"><span class="id" type="constructor">S</span></a> <span class="id" type="var">label</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">label</span> := <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#S"><span class="id" type="constructor">S</span></a> (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#S"><span class="id" type="constructor">S</span></a> <span class="id" type="var">label</span>) <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#reserve_labels"><span class="id" type="definition">reserve_labels</span></a> <span class="id" type="var">label</span> <span class="id" type="var">k</span> <br/>
+<span class="id" type="keyword">end</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Vérifier que <span class="inlinecode"><a class="idref" href="compiler.html#reserve_labels_grows"><span class="id" type="lemma">reserve_labels_grows</span></a> <span class="id" type="var">l</span> <span class="id" type="var">k</span></span> est toujours supérieur à <span class="inlinecode"><span class="id" type="var">l</span></span>. 
+<ul>
+<li> Difficulté : 1. 
+</li>
+</ul>
+
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="reserve_labels_grows"><span class="id" type="lemma">reserve_labels_grows</span></a>:  <br/>
+&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">k</span> <span class="id" type="var">l</span>, <span class="id" type="var">l</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Peano.html#:nat_scope:x_'<='_x"><span class="id" type="notation">&lt;=</span></a> <a class="idref" href="compiler.html#reserve_labels"><span class="id" type="definition">reserve_labels</span></a> <span class="id" type="var">l</span> <span class="id" type="var">k</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab8"></a><h1 class="section">La procédure de compilation</h1>
+
+</div>
+<div class="code">
+
+<br/>
+</div>
+
+<div class="doc">
+Les deux fonctions suivantes sont à comprendre ensemble:
+<ul>
+<li> <span class="inlinecode"><a class="idref" href="compiler.html#compile_program"><span class="id" type="definition">compile_program</span></a> <span class="id" type="var">future</span> <span class="id" type="var">prg</span> <a class="idref" href="compiler.html#label"><span class="id" type="definition">label</span></a> <span class="id" type="var">k</span></span>  retourne un 
+   nouveau programme construit à partir de <span class="inlinecode"><span class="id" type="var">prg</span></span>. Les 
+   nouvelles étiquettes sont comprises entre <span class="inlinecode"><a class="idref" href="compiler.html#label"><span class="id" type="definition">label</span></a></span> et 
+   <span class="inlinecode"><a class="idref" href="compiler.html#reserve_labels"><span class="id" type="definition">reserve_labels</span></a> <a class="idref" href="compiler.html#label"><span class="id" type="definition">label</span></a> <span class="id" type="var">k</span></span>. 
+
+</li>
+<li> <span class="inlinecode"><a class="idref" href="compiler.html#compile"><span class="id" type="definition">compile</span></a> <span class="id" type="var">future</span> <a class="idref" href="compiler.html#label"><span class="id" type="definition">label</span></a> <span class="id" type="var">k</span></span> retourne l'instruction qui
+   une fois exécutée dans le programme
+   <span class="inlinecode"><a class="idref" href="compiler.html#compile_program"><span class="id" type="definition">compile_program</span></a> <span class="id" type="var">future</span> <span class="id" type="var">prg</span> <a class="idref" href="compiler.html#label"><span class="id" type="definition">label</span></a> <span class="id" type="var">k</span></span> simulera <span class="inlinecode"><span class="id" type="var">k</span></span>. 
+</li>
+</ul>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" type="keyword">Fixpoint</span> <a name="compile"><span class="id" type="definition">compile</span></a> <span class="id" type="var">future</span> <span class="id" type="var">label</span> <span class="id" type="var">k</span> : <a class="idref" href="compiler.html#instr"><span class="id" type="inductive">instr</span></a> := <span class="id" type="keyword">match</span> <span class="id" type="var">k</span> <span class="id" type="keyword">with</span> <br/>
+&nbsp;&nbsp;| <a class="idref" href="compiler.html#skip"><span class="id" type="constructor">skip</span></a> =&gt; <span class="id" type="var">future</span><br/>
+&nbsp;&nbsp;| <a class="idref" href="compiler.html#seqi"><span class="id" type="constructor">seqi</span></a> <span class="id" type="var">k1</span> <span class="id" type="var">k2</span> =&gt; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">c2</span> := <a class="idref" href="compiler.html#compile"><span class="id" type="definition">compile</span></a> <span class="id" type="var">future</span> <span class="id" type="var">label</span> <span class="id" type="var">k2</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">label</span> := <a class="idref" href="compiler.html#reserve_labels"><span class="id" type="definition">reserve_labels</span></a> <span class="id" type="var">label</span> <span class="id" type="var">k2</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#compile"><span class="id" type="definition">compile</span></a> <span class="id" type="var">c2</span> <span class="id" type="var">label</span> <span class="id" type="var">k1</span> <br/>
+&nbsp;&nbsp;| <a class="idref" href="compiler.html#ass"><span class="id" type="constructor">ass</span></a> <span class="id" type="var">x</span> <span class="id" type="var">t</span> =&gt; <a class="idref" href="compiler.html#compile_term"><span class="id" type="definition">compile_term</span></a> <span class="id" type="var">x</span> <span class="id" type="var">future</span> <span class="id" type="var">t</span><br/>
+&nbsp;&nbsp;| <a class="idref" href="compiler.html#ifte"><span class="id" type="constructor">ifte</span></a> <span class="id" type="var">x</span> <span class="id" type="var">k1</span> <span class="id" type="var">k2</span> =&gt; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">else_begin</span> := <span class="id" type="var">label</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">if_end</span> := <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#S"><span class="id" type="constructor">S</span></a> <span class="id" type="var">label</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">label</span> := <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#S"><span class="id" type="constructor">S</span></a> (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#S"><span class="id" type="constructor">S</span></a> <span class="id" type="var">label</span>) <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">c1</span> := <a class="idref" href="compiler.html#compile"><span class="id" type="definition">compile</span></a> (<a class="idref" href="compiler.html#jmp"><span class="id" type="constructor">jmp</span></a> <span class="id" type="var">if_end</span>) <span class="id" type="var">label</span> <span class="id" type="var">k1</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#brz"><span class="id" type="constructor">brz</span></a> <span class="id" type="var">x</span> <span class="id" type="var">else_begin</span><a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">;</span></a><span class="id" type="var">c1</span><br/>
+&nbsp;&nbsp;| <a class="idref" href="compiler.html#while"><span class="id" type="constructor">while</span></a> <span class="id" type="var">x</span> <span class="id" type="var">k</span> =&gt; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">while_begin</span> := <span class="id" type="var">label</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#jmp"><span class="id" type="constructor">jmp</span></a> <span class="id" type="var">while_begin</span><br/>
+<span class="id" type="keyword">end</span>.<br/>
+
+<br/>
+<span class="id" type="keyword">Fixpoint</span> <a name="compile_program"><span class="id" type="definition">compile_program</span></a> <span class="id" type="var">future</span> <span class="id" type="var">prg</span> <span class="id" type="var">label</span> <span class="id" type="var">k</span> := <span class="id" type="keyword">match</span> <span class="id" type="var">k</span> <span class="id" type="keyword">with</span> <br/>
+&nbsp;&nbsp;| <a class="idref" href="compiler.html#skip"><span class="id" type="constructor">skip</span></a> =&gt; <span class="id" type="var">prg</span><br/>
+&nbsp;&nbsp;| <a class="idref" href="compiler.html#seqi"><span class="id" type="constructor">seqi</span></a> <span class="id" type="var">k1</span> <span class="id" type="var">k2</span> =&gt; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">c2</span> := <a class="idref" href="compiler.html#compile"><span class="id" type="definition">compile</span></a> <span class="id" type="var">future</span> <span class="id" type="var">label</span> <span class="id" type="var">k2</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">prg</span> := <a class="idref" href="compiler.html#compile_program"><span class="id" type="definition">compile_program</span></a> <span class="id" type="var">future</span> <span class="id" type="var">prg</span> <span class="id" type="var">label</span> <span class="id" type="var">k2</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">label</span> := <a class="idref" href="compiler.html#reserve_labels"><span class="id" type="definition">reserve_labels</span></a> <span class="id" type="var">label</span> <span class="id" type="var">k2</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#compile_program"><span class="id" type="definition">compile_program</span></a> <span class="id" type="var">c2</span> <span class="id" type="var">prg</span> <span class="id" type="var">label</span> <span class="id" type="var">k1</span> <br/>
+&nbsp;&nbsp;| <a class="idref" href="compiler.html#ass"><span class="id" type="constructor">ass</span></a> <span class="id" type="var">x</span> <span class="id" type="var">t</span> =&gt; <span class="id" type="var">prg</span><br/>
+&nbsp;&nbsp;| <a class="idref" href="compiler.html#ifte"><span class="id" type="constructor">ifte</span></a> <span class="id" type="var">x</span> <span class="id" type="var">k1</span> <span class="id" type="var">k2</span> =&gt; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">else_begin</span> := <span class="id" type="var">label</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">if_end</span> := <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#S"><span class="id" type="constructor">S</span></a> <span class="id" type="var">label</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">label</span> := 2 <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Peano.html#:nat_scope:x_'+'_x"><span class="id" type="notation">+</span></a> <span class="id" type="var">label</span> <span class="id" type="keyword">in</span> <br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">prg</span> := <a class="idref" href="compiler.html#compile_program"><span class="id" type="definition">compile_program</span></a> (<a class="idref" href="compiler.html#jmp"><span class="id" type="constructor">jmp</span></a> <span class="id" type="var">if_end</span>) <span class="id" type="var">prg</span> <span class="id" type="var">label</span> <span class="id" type="var">k1</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">label</span> := <a class="idref" href="compiler.html#reserve_labels"><span class="id" type="definition">reserve_labels</span></a> <span class="id" type="var">label</span> <span class="id" type="var">k1</span> <span class="id" type="keyword">in</span> <br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">c2</span> := <a class="idref" href="compiler.html#compile"><span class="id" type="definition">compile</span></a> (<a class="idref" href="compiler.html#jmp"><span class="id" type="constructor">jmp</span></a> <span class="id" type="var">if_end</span>) <span class="id" type="var">label</span> <span class="id" type="var">k2</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">prg</span> := <a class="idref" href="compiler.html#compile_program"><span class="id" type="definition">compile_program</span></a> (<a class="idref" href="compiler.html#jmp"><span class="id" type="constructor">jmp</span></a> <span class="id" type="var">if_end</span>) <span class="id" type="var">prg</span> <span class="id" type="var">label</span> <span class="id" type="var">k2</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">label</span> := <a class="idref" href="compiler.html#reserve_labels"><span class="id" type="definition">reserve_labels</span></a> <span class="id" type="var">label</span> <span class="id" type="var">k2</span> <span class="id" type="keyword">in</span> <br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">if_end</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a> <span class="id" type="var">future</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">else_begin</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a> <span class="id" type="var">c2</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a><span class="id" type="var">prg</span><br/>
+&nbsp;&nbsp;| <a class="idref" href="compiler.html#while"><span class="id" type="constructor">while</span></a> <span class="id" type="var">x</span> <span class="id" type="var">k</span> =&gt; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">while_begin</span> := <span class="id" type="var">label</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">while_end</span> := <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#S"><span class="id" type="constructor">S</span></a> <span class="id" type="var">label</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">label</span> := <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#S"><span class="id" type="constructor">S</span></a> (<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#S"><span class="id" type="constructor">S</span></a> <span class="id" type="var">label</span>) <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">c</span> := <a class="idref" href="compiler.html#compile"><span class="id" type="definition">compile</span></a> (<a class="idref" href="compiler.html#jmp"><span class="id" type="constructor">jmp</span></a> <span class="id" type="var">while_begin</span>) <span class="id" type="var">label</span> <span class="id" type="var">k</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">prg</span> := <a class="idref" href="compiler.html#compile_program"><span class="id" type="definition">compile_program</span></a> (<a class="idref" href="compiler.html#jmp"><span class="id" type="constructor">jmp</span></a> <span class="id" type="var">while_begin</span>) <span class="id" type="var">prg</span> <span class="id" type="var">label</span> <span class="id" type="var">k</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">label</span> := <a class="idref" href="compiler.html#reserve_labels"><span class="id" type="definition">reserve_labels</span></a> <span class="id" type="var">label</span> <span class="id" type="var">k</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">while_begin</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a> <a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">(</span></a><a class="idref" href="compiler.html#brz"><span class="id" type="constructor">brz</span></a> <span class="id" type="var">x</span> <span class="id" type="var">while_end</span><a class="idref" href="compiler.html#::x_';'_x"><span class="id" type="notation">);</span></a><span class="id" type="var">c</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">while_end</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a> <span class="id" type="var">future</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a><span class="id" type="var">prg</span><br/>
+<span class="id" type="keyword">end</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<span class="inlinecode"><a class="idref" href="compiler.html#compile_main"><span class="id" type="definition">compile_main</span></a> <span class="id" type="var">k</span></span> crée un nouveau programme qui 
+    commence et se termine par la simulation de <span class="inlinecode"><span class="id" type="var">k</span></span>. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Definition</span> <a name="compile_main"><span class="id" type="definition">compile_main</span></a> <span class="id" type="var">k</span> := <br/>
+&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">c</span> := <a class="idref" href="compiler.html#compile"><span class="id" type="definition">compile</span></a> <a class="idref" href="compiler.html#hlt"><span class="id" type="constructor">hlt</span></a> 1 <span class="id" type="var">k</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">let</span> <span class="id" type="var">prg</span> := <a class="idref" href="compiler.html#compile_program"><span class="id" type="definition">compile_program</span></a> <a class="idref" href="compiler.html#hlt"><span class="id" type="constructor">hlt</span></a> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#nil"><span class="id" type="constructor">nil</span></a> 1 <span class="id" type="var">k</span> <span class="id" type="keyword">in</span> <br/>
+&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">(</span></a>0<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">,</span></a> <span class="id" type="var">c</span><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:core_scope:'('_x_','_x_','_'..'_','_x_')'"><span class="id" type="notation">)</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Datatypes.html#:list_scope:x_'::'_x"><span class="id" type="notation">::</span></a><span class="id" type="var">prg</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Vous pouvez tester la fonction de compilation : 
+</div>
+<div class="code">
+<span class="id" type="keyword">Definition</span> <a name="compile_fact"><span class="id" type="definition">compile_fact</span></a> := <br/>
+&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Eval</span> <span class="id" type="tactic">compute</span> <span class="id" type="keyword">in</span> (<a class="idref" href="compiler.html#compile_main"><span class="id" type="definition">compile_main</span></a> (<a class="idref" href="compiler.html#fact_test"><span class="id" type="definition">fact_test</span></a> 4)).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Si l'on peut faire un petit pas dans un prg, alors on peut faire 
+    le même petit pas dans tout sur-programme. 
+<ul>
+<li> Difficulté: 1 
+</li>
+</ul>
+
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="weakening_step"><span class="id" type="lemma">weakening_step</span></a>: <br/>
+&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">r</span> <span class="id" type="var">c</span> <span class="id" type="var">r'</span> <span class="id" type="var">c'</span> <span class="id" type="var">prg</span>,  <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'--'_x_'-->'_'('_x_'|'_x_')'"><span class="id" type="notation">(</span></a> <span class="id" type="var">r</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'--'_x_'-->'_'('_x_'|'_x_')'"><span class="id" type="notation">|</span></a> <span class="id" type="var">c</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'--'_x_'-->'_'('_x_'|'_x_')'"><span class="id" type="notation">)</span></a> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'--'_x_'-->'_'('_x_'|'_x_')'"><span class="id" type="notation">--</span></a> <span class="id" type="var">prg</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'--'_x_'-->'_'('_x_'|'_x_')'"><span class="id" type="notation">--&gt;</span></a> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'--'_x_'-->'_'('_x_'|'_x_')'"><span class="id" type="notation">(</span></a> <span class="id" type="var">r'</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'--'_x_'-->'_'('_x_'|'_x_')'"><span class="id" type="notation">|</span></a> <span class="id" type="var">c'</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'--'_x_'-->'_'('_x_'|'_x_')'"><span class="id" type="notation">)</span></a> -&gt; <span class="id" type="keyword">forall</span> <span class="id" type="var">prg'</span> <span class="id" type="var">l</span>, <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#sub_program"><span class="id" type="inductive">sub_program</span></a> <span class="id" type="var">l</span> <span class="id" type="var">prg</span> <span class="id" type="var">prg'</span> -&gt; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'--'_x_'-->'_'('_x_'|'_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">r</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'--'_x_'-->'_'('_x_'|'_x_')'"><span class="id" type="notation">|</span></a> <span class="id" type="var">c</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'--'_x_'-->'_'('_x_'|'_x_')'"><span class="id" type="notation">)</span></a> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'--'_x_'-->'_'('_x_'|'_x_')'"><span class="id" type="notation">--</span></a> <span class="id" type="var">prg'</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'--'_x_'-->'_'('_x_'|'_x_')'"><span class="id" type="notation">--&gt;</span></a> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'--'_x_'-->'_'('_x_'|'_x_')'"><span class="id" type="notation">(</span></a> <span class="id" type="var">r'</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'--'_x_'-->'_'('_x_'|'_x_')'"><span class="id" type="notation">|</span></a> <span class="id" type="var">c'</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'--'_x_'-->'_'('_x_'|'_x_')'"><span class="id" type="notation">)</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Pareil, pour la clôture. 
+<ul>
+<li> Difficulté : 0. 
+</li>
+</ul>
+
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="weakening"><span class="id" type="lemma">weakening</span></a> : <br/>
+&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">r</span> <span class="id" type="var">c</span> <span class="id" type="var">r'</span> <span class="id" type="var">c'</span> <span class="id" type="var">prg</span>,  <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">(</span></a> <span class="id" type="var">r</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">|</span></a> <span class="id" type="var">c</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">)</span></a> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">==</span></a> <span class="id" type="var">prg</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">==&gt;</span></a> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">(</span></a> <span class="id" type="var">r'</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">|</span></a> <span class="id" type="var">c'</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">)</span></a> -&gt; <span class="id" type="keyword">forall</span> <span class="id" type="var">l</span> <span class="id" type="var">prg'</span>, <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#sub_program"><span class="id" type="inductive">sub_program</span></a> <span class="id" type="var">l</span> <span class="id" type="var">prg</span> <span class="id" type="var">prg'</span> -&gt; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">(</span></a><span class="id" type="var">r</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">|</span></a> <span class="id" type="var">c</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">)</span></a> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">==</span></a> <span class="id" type="var">prg'</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">==&gt;</span></a> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">(</span></a> <span class="id" type="var">r'</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">|</span></a> <span class="id" type="var">c'</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">)</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Voici la collection de tous les lemmes bureaucratiques. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Hint</span> <span class="id" type="keyword">Resolve</span> <br/>
+<a class="idref" href="compiler.html#sub_program_refl"><span class="id" type="constructor">sub_program_refl</span></a> <a class="idref" href="compiler.html#sub_program_cons"><span class="id" type="constructor">sub_program_cons</span></a> <br/>
+<a class="idref" href="compiler.html#safe_nil"><span class="id" type="constructor">safe_nil</span></a> <a class="idref" href="compiler.html#safe_cons"><span class="id" type="constructor">safe_cons</span></a> <a class="idref" href="compiler.html#lt_diff"><span class="id" type="axiom">lt_diff</span></a> <a class="idref" href="compiler.html#lt_diff2"><span class="id" type="axiom">lt_diff2</span></a><br/>
+<a class="idref" href="compiler.html#safe_weak"><span class="id" type="axiom">safe_weak</span></a> <a class="idref" href="compiler.html#safe_reserved"><span class="id" type="axiom">safe_reserved</span></a><br/>
+<a class="idref" href="compiler.html#sub_program_nil"><span class="id" type="axiom">sub_program_nil</span></a> <a class="idref" href="compiler.html#sub_program_safe_left"><span class="id" type="axiom">sub_program_safe_left</span></a><br/>
+<a class="idref" href="compiler.html#sub_program_safe_right"><span class="id" type="axiom">sub_program_safe_right</span></a> <a class="idref" href="compiler.html#sub_program_weak"><span class="id" type="axiom">sub_program_weak</span></a><br/>
+<a class="idref" href="compiler.html#sub_program_trans"><span class="id" type="axiom">sub_program_trans</span></a> <a class="idref" href="compiler.html#reserve_labels_grows"><span class="id" type="axiom">reserve_labels_grows</span></a> : <span class="id" type="var">bureaucracy</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+On définit un alias pour la tactique <span class="inlinecode"><span class="id" type="tactic">eauto</span> <span class="id" type="keyword">with</span> <span class="id" type="var">bureaucracy</span> <span class="id" type="var">arith</span></span> 
+    qui pourrait tenter de résoudre automatiquement tout ce qui 
+    concerne les prédicats <span class="inlinecode"><a class="idref" href="compiler.html#safe"><span class="id" type="inductive">safe</span></a></span>, <span class="inlinecode"><a class="idref" href="compiler.html#reserved"><span class="id" type="inductive">reserved</span></a></span> et <span class="inlinecode"><a class="idref" href="compiler.html#sub_program"><span class="id" type="inductive">sub_program</span></a></span>. Nous
+    conseillons de l'utiliser après les tactiques qui génèrent 
+    plusieurs buts (avec ";") pour éviter que vos preuves soient interminables. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Ltac</span> <span class="id" type="var">bureaucracy</span> := <span class="id" type="tactic">eauto</span> <span class="id" type="keyword">with</span> <span class="id" type="var">bureaucracy</span> <span class="id" type="var">arith</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Voici un des lemmes les plus difficiles à prouver: 
+    il affirme que le programme généré par <span class="inlinecode"><a class="idref" href="compiler.html#compile_program"><span class="id" type="definition">compile_program</span></a> <span class="id" type="var">future</span> <span class="id" type="var">prg</span> <span class="id" type="var">l</span> <span class="id" type="var">k</span></span>
+    n'a ajouté à <span class="inlinecode"><span class="id" type="var">prg</span></span> que des étiquettes comprises entre <span class="inlinecode"><a class="idref" href="compiler.html#label"><span class="id" type="definition">label</span></a></span> et 
+    <span class="inlinecode"><a class="idref" href="compiler.html#reserve_labels"><span class="id" type="definition">reserve_labels</span></a> <span class="id" type="var">l</span> <span class="id" type="var">k</span></span>. 
+<ul>
+<li> Difficulté: 3. 
+</li>
+</ul>
+
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="reserve_labels_sound"><span class="id" type="lemma">reserve_labels_sound</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">k</span> <span class="id" type="var">l</span> <span class="id" type="var">prg</span>, <a class="idref" href="compiler.html#safe"><span class="id" type="inductive">safe</span></a> <span class="id" type="var">l</span> <span class="id" type="var">prg</span> -&gt; <span class="id" type="keyword">forall</span> <span class="id" type="var">future</span>,<br/>
+&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#safe"><span class="id" type="inductive">safe</span></a> (<a class="idref" href="compiler.html#reserve_labels"><span class="id" type="definition">reserve_labels</span></a> <span class="id" type="var">l</span> <span class="id" type="var">k</span>) (<a class="idref" href="compiler.html#compile_program"><span class="id" type="definition">compile_program</span></a> <span class="id" type="var">future</span> <span class="id" type="var">prg</span> <span class="id" type="var">l</span> <span class="id" type="var">k</span>) <br/>
+<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Logic.html#:type_scope:x_'/\'_x"><span class="id" type="notation">/\</span></a> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Logic.html#:type_scope:x_'/\'_x"><span class="id" type="notation">(</span></a><span class="id" type="keyword">forall</span> <span class="id" type="var">l'</span>, <span class="id" type="var">l'</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Peano.html#:nat_scope:x_'<'_x"><span class="id" type="notation">&lt;</span></a> <span class="id" type="var">l</span> -&gt; <a class="idref" href="compiler.html#reserved"><span class="id" type="inductive">reserved</span></a> <span class="id" type="var">l'</span> <span class="id" type="var">prg</span> -&gt; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#reserved"><span class="id" type="inductive">reserved</span></a> <span class="id" type="var">l'</span> (<a class="idref" href="compiler.html#compile_program"><span class="id" type="definition">compile_program</span></a> <span class="id" type="var">future</span> <span class="id" type="var">prg</span> <span class="id" type="var">l</span> <span class="id" type="var">k</span>)<a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Logic.html#:type_scope:x_'/\'_x"><span class="id" type="notation">)</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+On ajoute  les deux lemmes suivants dans la base de données des lemmes bureaucratiques. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="reserve_labels_sound1"><span class="id" type="lemma">reserve_labels_sound1</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">k</span> <span class="id" type="var">l</span> <span class="id" type="var">prg</span>, <a class="idref" href="compiler.html#safe"><span class="id" type="inductive">safe</span></a> <span class="id" type="var">l</span> <span class="id" type="var">prg</span> -&gt; <span class="id" type="keyword">forall</span> <span class="id" type="var">future</span>,<br/>
+&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#safe"><span class="id" type="inductive">safe</span></a> (<a class="idref" href="compiler.html#reserve_labels"><span class="id" type="definition">reserve_labels</span></a> <span class="id" type="var">l</span> <span class="id" type="var">k</span>) (<a class="idref" href="compiler.html#compile_program"><span class="id" type="definition">compile_program</span></a> <span class="id" type="var">future</span> <span class="id" type="var">prg</span> <span class="id" type="var">l</span> <span class="id" type="var">k</span>).<br/>
+
+<br/>
+<span class="id" type="keyword">Lemma</span> <a name="reserve_labels_sound2"><span class="id" type="lemma">reserve_labels_sound2</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">k</span> <span class="id" type="var">l</span> <span class="id" type="var">prg</span>, <a class="idref" href="compiler.html#safe"><span class="id" type="inductive">safe</span></a> <span class="id" type="var">l</span> <span class="id" type="var">prg</span> -&gt; <br/>
+&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">future</span> <span class="id" type="var">l'</span>, <span class="id" type="var">l'</span> <a class="idref" href="http://coq.inria.fr/distrib/8.2/stdlib/Coq.Init.Peano.html#:nat_scope:x_'<'_x"><span class="id" type="notation">&lt;</span></a> <span class="id" type="var">l</span> -&gt; <a class="idref" href="compiler.html#reserved"><span class="id" type="inductive">reserved</span></a> <span class="id" type="var">l'</span> <span class="id" type="var">prg</span> -&gt; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#reserved"><span class="id" type="inductive">reserved</span></a> <span class="id" type="var">l'</span> (<a class="idref" href="compiler.html#compile_program"><span class="id" type="definition">compile_program</span></a> <span class="id" type="var">future</span> <span class="id" type="var">prg</span> <span class="id" type="var">l</span> <span class="id" type="var">k</span>).<br/>
+
+<br/>
+<span class="id" type="keyword">Hint</span> <span class="id" type="keyword">Resolve</span> <a class="idref" href="compiler.html#reserve_labels_sound1"><span class="id" type="axiom">reserve_labels_sound1</span></a> <a class="idref" href="compiler.html#reserve_labels_sound2"><span class="id" type="axiom">reserve_labels_sound2</span></a> : <span class="id" type="var">bureaucracy</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Ce lemme affirme que <span class="inlinecode"><span class="id" type="var">compile_programe</span> <span class="id" type="var">future</span> <span class="id" type="var">prg</span> <span class="id" type="var">l</span> <span class="id" type="var">k</span></span> est un sur-programme 
+    de <span class="inlinecode"><span class="id" type="var">prg</span></span>. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="compile_weakening"><span class="id" type="lemma">compile_weakening</span></a>: <span class="id" type="keyword">forall</span> <span class="id" type="var">k</span> <span class="id" type="var">l</span> <span class="id" type="var">prg</span>, <a class="idref" href="compiler.html#safe"><span class="id" type="inductive">safe</span></a> <span class="id" type="var">l</span> <span class="id" type="var">prg</span> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">future</span>, <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#sub_program"><span class="id" type="inductive">sub_program</span></a> (<a class="idref" href="compiler.html#reserve_labels"><span class="id" type="definition">reserve_labels</span></a> <span class="id" type="var">l</span> <span class="id" type="var">k</span>) <span class="id" type="var">prg</span> (<a class="idref" href="compiler.html#compile_program"><span class="id" type="definition">compile_program</span></a> <span class="id" type="var">future</span> <span class="id" type="var">prg</span> <span class="id" type="var">l</span> <span class="id" type="var">k</span>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Voici le lemme qui affirme la correction de la procédure 
+    de compilation. 
+<ul>
+<li> Difficulté: 3. 
+</li>
+</ul>
+
+</div>
+<div class="code">
+<span class="id" type="keyword">Lemma</span> <a name="compile_sound"><span class="id" type="lemma">compile_sound</span></a>: <br/>
+&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">r</span> <span class="id" type="var">k</span> <span class="id" type="var">r'</span>, <a class="idref" href="compiler.html#execute"><span class="id" type="inductive">execute</span></a> <span class="id" type="var">r</span> <span class="id" type="var">k</span> <span class="id" type="var">r'</span> -&gt; <span class="id" type="keyword">forall</span> <span class="id" type="var">label</span> <span class="id" type="var">future</span> <span class="id" type="var">prg</span>, <a class="idref" href="compiler.html#safe"><span class="id" type="inductive">safe</span></a> <span class="id" type="var">label</span> <span class="id" type="var">prg</span> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">(</span></a> <span class="id" type="var">r</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">|</span></a> <a class="idref" href="compiler.html#compile"><span class="id" type="definition">compile</span></a> <span class="id" type="var">future</span> <span class="id" type="var">label</span> <span class="id" type="var">k</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">)</span></a> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">==</span></a> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">(</span></a><a class="idref" href="compiler.html#compile_program"><span class="id" type="definition">compile_program</span></a> <span class="id" type="var">future</span> <span class="id" type="var">prg</span> <span class="id" type="var">label</span> <span class="id" type="var">k</span><a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">)</span></a> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">==&gt;</span></a> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">(</span></a> <span class="id" type="var">r'</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">|</span></a> <span class="id" type="var">future</span> <a class="idref" href="compiler.html#::'('_x_'|'_x_')'_'=='_x_'==>'_'('_x_'|'_x_')'"><span class="id" type="notation">)</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Bravo ! Vous avez certifié votre premier compilateur. 
+</div>
+<div class="code">
+<span class="id" type="keyword">Theorem</span> <a name="compile_main_sound"><span class="id" type="lemma">compile_main_sound</span></a>: <br/>
+&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">r</span> <span class="id" type="var">r'</span> <span class="id" type="var">k</span>, <a class="idref" href="compiler.html#execute"><span class="id" type="inductive">execute</span></a> <span class="id" type="var">r</span> <span class="id" type="var">k</span> <span class="id" type="var">r'</span> -&gt; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="var">r</span> <a class="idref" href="compiler.html#::x_'=='_x_'==>'_x"><span class="id" type="notation">==</span></a> <a class="idref" href="compiler.html#compile_main"><span class="id" type="definition">compile_main</span></a> <span class="id" type="var">k</span> <a class="idref" href="compiler.html#::x_'=='_x_'==>'_x"><span class="id" type="notation">==&gt;</span></a> <span class="id" type="var">r'</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+L'étape ultime: extraire le code caml du fichier coq. 
+</div>
+<div class="code">
+<span class="id" type="var">Extraction</span> "compiler.ml" <span class="id" type="var">compile_main</span>.<br/>
+</div>
+<!-- Google analytics -->
+<script type="text/javascript">
+  var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+  document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+  </script>
+  <script type="text/javascript">
+  try {
+  var pageTracker = _gat._getTracker("UA-12912216-1");
+  pageTracker._trackPageview();
+  } catch(err) {}
+</script>
+</body>
+</html>
